@@ -1,0 +1,95 @@
+[workspace]
+resolver = "3"
+members = ["crates/imago-core", "crates/imago-cli", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "GPL-3.0-or-later"
+authors = ["Imago contributors"]
+keywords = ["image", "compression", "optimizer", "webp", "avif"]
+categories = ["multimedia::images", "command-line-utilities"]
+
+[workspace.dependencies]
+# Internal
+imago-core = { path = "crates/imago-core", version = "0.1.0", default-features = false }
+
+# Errors, serialization, logging
+thiserror = "2"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+# Imaging (decoders, encoders, resize, color management, containers)
+image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "tiff", "webp"] }
+mozjpeg = "0.10.13"
+webp = { version = "0.3.1", default-features = false }
+ravif = "0.13"
+avif-decode = { version = "3", default-features = false }
+avif-parse = "2.1"
+oxipng = { version = "10.2", default-features = false, features = ["parallel"] }
+imagequant = "4.4"
+gif = "0.14"
+tiff = "0.11"
+jxl-oxide = { version = "0.12", features = ["image"] }
+zune-jpegxl = "0.5"
+zune-core = "0.5"
+fast_image_resize = { version = "6.1", features = ["image"] }
+moxcms = "0.8"
+img-parts = "0.4"
+rgb = { version = "0.8", features = ["bytemuck"] }
+
+# Files and concurrency
+tempfile = "3.27"
+same-file = "1"
+walkdir = "2.5"
+zip = { version = "8.6", default-features = false }
+crossbeam-channel = "0.5"
+rayon = "1.11"
+directories = "6"
+
+# Benchmarks and tests
+criterion = "0.8"
+
+# Tauri
+tauri = { version = "2.12", features = [] }
+tauri-build = { version = "2.7", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.6"
+
+# CLI
+clap = { version = "4.6", features = ["derive", "wrap_help"] }
+ctrlc = "3.5"
+indicatif = "0.18"
+assert_cmd = "2.2"
+predicates = "3.1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+
+# Release: fast code, small binaries. `panic = "unwind"` is deliberate (ADR-004):
+# every file is processed inside `catch_unwind`, so a panicking codec fails one
+# file instead of killing the whole application.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+strip = true
+
+# Image codecs are unusably slow without optimizations; keep our own crates
+# debuggable but always optimize dependencies, also in tests.
+[profile.dev.package."*"]
+opt-level = 3

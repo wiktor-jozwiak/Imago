@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx vite build
+
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system libraries (WebKitGTK for Tauri)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev build-essential
+
+      - uses: ilammy/setup-nasm@v1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # tauri::generate_context! embeds the built frontend.
+      - run: npm ci
+      - run: npx vite build
+
+      - name: rustfmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - name: clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: clippy (engine without optional codecs)
+        if: runner.os == 'Linux'
+        run: cargo clippy -p imago-core --no-default-features --all-targets -- -D warnings
+      - name: tests
+        run: cargo test --all
+      - name: tests (engine without optional codecs)
+        if: runner.os == 'Linux'
+        run: cargo test -p imago-core --no-default-features
+      - name: benchmarks compile
+        if: runner.os == 'Linux'
+        run: cargo bench -p imago-core --no-run

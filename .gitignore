@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / Vite
+node_modules/
+/dist/
+/coverage/
+*.tsbuildinfo
+
+# Tauri generated files
+/src-tauri/gen/schemas/
+
+# Logs and OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local benchmark / test output
+/bench-output/
+
+# Claude Code personal settings
+.claude/settings.local.json
