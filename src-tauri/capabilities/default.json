@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main Imago window: core IPC only. File dialogs, previews and file access go through Imago's own commands, which only touch paths the user added.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
