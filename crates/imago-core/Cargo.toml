@@ -1,0 +1,66 @@
+[package]
+name = "imago-core"
+description = "Imago image optimization engine: format detection, decoding, resizing, encoding and safe output."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = ["avif", "jxl"]
+# AVIF encoding (rav1e) and decoding (rav1d). Needs NASM on x86/x86_64.
+avif = ["dep:ravif", "dep:avif-decode", "dep:avif-parse"]
+# JPEG XL decoding (jxl-oxide) and lossless encoding (zune-jpegxl).
+jxl = ["dep:jxl-oxide", "dep:zune-jpegxl", "dep:zune-core"]
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+image.workspace = true
+mozjpeg.workspace = true
+webp.workspace = true
+oxipng.workspace = true
+imagequant.workspace = true
+gif.workspace = true
+tiff.workspace = true
+fast_image_resize.workspace = true
+moxcms.workspace = true
+img-parts.workspace = true
+ravif = { workspace = true, optional = true }
+avif-decode = { workspace = true, optional = true }
+avif-parse = { workspace = true, optional = true }
+rgb.workspace = true
+jxl-oxide = { workspace = true, optional = true }
+zune-jpegxl = { workspace = true, optional = true }
+zune-core = { workspace = true, optional = true }
+
+tempfile.workspace = true
+same-file.workspace = true
+walkdir.workspace = true
+zip.workspace = true
+crossbeam-channel.workspace = true
+rayon.workspace = true
+directories.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+img-parts.workspace = true
+tempfile.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "codecs"
+harness = false
+
+[[bench]]
+name = "pipeline"
+harness = false
+
+[lints]
+workspace = true
