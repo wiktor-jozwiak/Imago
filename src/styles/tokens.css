@@ -1,0 +1,145 @@
+/*
+ * Design tokens. The theme follows the operating system unless the user picks
+ * one explicitly, which sets `data-theme="light" | "dark"` on <html>.
+ */
+:root {
+  color-scheme: light;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+  --text-xs: 0.78125rem;
+  --text-sm: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.75rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-s: 7px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --radius-xl: 20px;
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --bg: #f2f4f7;
+  --surface: #ffffff;
+  --surface-2: #f1f4f7;
+  --surface-3: #e4e9ee;
+  --border: #e0e5ea;
+  --border-strong: #c8d0d8;
+  --text: #15202b;
+  --text-muted: #4d5a67;
+  --text-subtle: #67737f;
+
+  --accent: #2f6f77;
+  --accent-strong: #245a61;
+  --accent-soft: #e3f0f1;
+  --accent-gradient: linear-gradient(135deg, #3c8088, #2a4c7c);
+  --on-accent: #ffffff;
+
+  --track: #edf0f4;
+  --track-hover: #e3e8ed;
+  --raised: #ffffff;
+
+  --success: #267246;
+  --success-soft: #e2f3e8;
+  --warning: #875c00;
+  --warning-soft: #fbf0d9;
+  --danger: #b3261e;
+  --danger-soft: #fbe6e4;
+  --info: #2a4c7c;
+  --info-soft: #e5ecf6;
+
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.07);
+  --shadow-2: 0 10px 28px rgb(16 24 40 / 0.14);
+  --focus-ring: 0 0 0 3px rgb(47 111 119 / 0.35);
+  --backdrop: rgb(15 20 25 / 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d1216;
+    --surface: #151b21;
+    --surface-2: #1b232a;
+    --surface-3: #25303a;
+    --border: #26313a;
+    --border-strong: #3a4753;
+    --text: #e8ecef;
+    --text-muted: #a5b1bc;
+    --text-subtle: #818d98;
+
+    --accent: #72b9c0;
+    --accent-strong: #93cdd3;
+    --accent-soft: #19343a;
+    --accent-gradient: linear-gradient(135deg, #3c8088, #2a4c7c);
+    --on-accent: #0a1215;
+
+    --track: #0f1418;
+    --track-hover: #1c252d;
+    --raised: #2a3641;
+
+    --success: #6fc48f;
+    --success-soft: #15291d;
+    --warning: #dcaa4a;
+    --warning-soft: #2c2412;
+    --danger: #f28d83;
+    --danger-soft: #341b19;
+    --info: #8aaddd;
+    --info-soft: #18243a;
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+    --shadow-2: 0 10px 28px rgb(0 0 0 / 0.55);
+    --focus-ring: 0 0 0 3px rgb(114 185 192 / 0.45);
+    --backdrop: rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1216;
+  --surface: #151b21;
+  --surface-2: #1b232a;
+  --surface-3: #25303a;
+  --border: #26313a;
+  --border-strong: #3a4753;
+  --text: #e8ecef;
+  --text-muted: #a5b1bc;
+  --text-subtle: #818d98;
+
+  --accent: #72b9c0;
+  --accent-strong: #93cdd3;
+  --accent-soft: #19343a;
+  --accent-gradient: linear-gradient(135deg, #3c8088, #2a4c7c);
+  --on-accent: #0a1215;
+
+  --track: #0f1418;
+  --track-hover: #1c252d;
+  --raised: #2a3641;
+
+  --success: #6fc48f;
+  --success-soft: #15291d;
+  --warning: #dcaa4a;
+  --warning-soft: #2c2412;
+  --danger: #f28d83;
+  --danger-soft: #341b19;
+  --info: #8aaddd;
+  --info-soft: #18243a;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+  --shadow-2: 0 10px 28px rgb(0 0 0 / 0.55);
+  --focus-ring: 0 0 0 3px rgb(114 185 192 / 0.45);
+  --backdrop: rgb(0 0 0 / 0.6);
+}
