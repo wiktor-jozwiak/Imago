@@ -2,6 +2,17 @@ name: Release
 
 # Builds installers (Windows MSI + NSIS, macOS DMG, Linux DEB/RPM/AppImage) and
 # CLI archives when a version tag is pushed, and attaches them to a draft release.
+#
+# Code signing is optional and switches itself on when the matching secrets
+# exist (see docs/SIGNING.md):
+#   Windows, Azure Trusted Signing: AZURE_TENANT_ID, AZURE_CLIENT_ID,
+#     AZURE_CLIENT_SECRET, TRUSTED_SIGNING_ENDPOINT, TRUSTED_SIGNING_ACCOUNT,
+#     TRUSTED_SIGNING_PROFILE
+#   Windows, certificate file (.pfx): WINDOWS_CERTIFICATE (base64),
+#     WINDOWS_CERTIFICATE_PASSWORD
+#   macOS: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+#     APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+# Without them the builds are unsigned, as before.
 on:
   push:
     tags: ["v*"]
@@ -33,6 +44,11 @@ jobs:
             os: ubuntu-22.04
             args: ""
     runs-on: ${{ matrix.os }}
+    env:
+      # Flags only: the secrets themselves are passed to the steps that use them.
+      SIGN_AZURE: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
+      SIGN_PFX: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+      SIGN_APPLE: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Linux system libraries
@@ -50,16 +66,73 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      # ---- Windows signing (optional) -----------------------------------
+      - name: Windows signing with Azure Trusted Signing
+        if: runner.os == 'Windows' && env.SIGN_AZURE == 'true'
+        shell: pwsh
+        env:
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          TRUSTED_SIGNING_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+        run: |
+          cargo install trusted-signing-cli --locked
+          # Tauri calls the command for every binary and installer (%1 = file).
+          $command = "trusted-signing-cli -e $env:TRUSTED_SIGNING_ENDPOINT -a $env:TRUSTED_SIGNING_ACCOUNT -c $env:TRUSTED_SIGNING_PROFILE -d Imago %1"
+          $config = @{ bundle = @{ windows = @{ signCommand = $command } } } | ConvertTo-Json -Depth 5 -Compress
+          Set-Content -Path src-tauri/tauri.signing.json -Value $config -Encoding utf8
+          "TAURI_SIGNING_CONFIG=--config src-tauri/tauri.signing.json" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Windows signing with a certificate file
+        if: runner.os == 'Windows' && env.SIGN_AZURE != 'true' && env.SIGN_PFX == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "imago-signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          $config = @{ bundle = @{ windows = @{
+            certificateThumbprint = $certificate.Thumbprint
+            digestAlgorithm = "sha256"
+            timestampUrl = "http://timestamp.digicert.com"
+          } } } | ConvertTo-Json -Depth 5 -Compress
+          Set-Content -Path src-tauri/tauri.signing.json -Value $config -Encoding utf8
+          "TAURI_SIGNING_CONFIG=--config src-tauri/tauri.signing.json" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # ---- macOS signing and notarization (optional) ---------------------
+      - name: macOS signing
+        if: runner.os == 'macOS' && env.SIGN_APPLE == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          # tauri-action reads these; they are exported only when a certificate exists.
+          {
+            echo "APPLE_CERTIFICATE=${{ secrets.APPLE_CERTIFICATE }}"
+            echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}"
+            echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Imago ${{ github.ref_name }}"
-          releaseBody: "Imago Image Optimizer — Fast. Local. Smaller images."
+          releaseBody: "Imago Image Optimizer — Fast. Local. Smaller images. Checksums: SHA256SUMS.txt."
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ env.TAURI_SIGNING_CONFIG }}
 
   cli:
     name: CLI (${{ matrix.target }})
@@ -80,6 +153,8 @@ jobs:
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
     runs-on: ${{ matrix.os }}
+    env:
+      SIGN_AZURE: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/setup-nasm@v1
@@ -88,6 +163,19 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p imago-cli --target ${{ matrix.target }}
+      - name: Sign the Windows CLI (Azure Trusted Signing, optional)
+        if: runner.os == 'Windows' && env.SIGN_AZURE == 'true'
+        shell: pwsh
+        env:
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
+          TRUSTED_SIGNING_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          cargo install trusted-signing-cli --locked
+          trusted-signing-cli -e $env:TRUSTED_SIGNING_ENDPOINT -a $env:TRUSTED_SIGNING_ACCOUNT -c $env:TRUSTED_SIGNING_PROFILE -d "Imago CLI" "target/${{ matrix.target }}/release/imago.exe"
       - name: Package
         shell: bash
         run: |
@@ -103,3 +191,18 @@ jobs:
         with:
           draft: true
           files: dist/imago-cli-*
+
+  checksums:
+    name: SHA-256 checksums
+    needs: [app, cli]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checksums of every release file
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "${{ github.ref_name }}" --repo "${{ github.repository }}" --pattern '*'
+          rm -f SHA256SUMS.txt
+          sha256sum * > SHA256SUMS.txt
+          gh release upload "${{ github.ref_name }}" SHA256SUMS.txt --repo "${{ github.repository }}" --clobber
