@@ -93,7 +93,7 @@ Imago/
 2. **`cli.rs` → osobny crate `imago-cli`** z binarką `imago` (CLI nie potrzebuje Tauri/WebView; build i dystrybucja są niezależne).
 3. **`benches/` i `tests/` wewnątrz `crates/imago-core`** — Criterion i testy integracyjne muszą należeć do crate'a, który testują.
 4. **`codecs/` jako katalog** (jeden plik na format) zamiast jednego `codecs.rs` — każdy kodek ma własne ustawienia i testy.
-5. **Dodatkowe moduły:** `cancel.rs` (token anulowania), `settings.rs` (wspólne struktury ustawień GUI/CLI), `preview.rs` (miniatury i podgląd), `image_engine/probe.rs` (analiza nagłówków — kroki 4–9), `image_engine/auto.rs` (tryb automatyczny), `image_engine/animation.rs`, `codecs/quantize.rs` (libimagequant) i `codecs/webp_mux.rs` (kontener animowanego WebP, ADR-012).
+5. **Dodatkowe moduły:** `cancel.rs` (token anulowania), `settings.rs` (wspólne struktury ustawień GUI/CLI), `preview.rs` (miniatury i podgląd), `image_engine/probe.rs` (analiza nagłówków — kroki 4–9), `image_engine/auto.rs` (tryb automatyczny), `image_engine/animation.rs`, `codecs/quantize.rs` (libimagequant), `codecs/webp_mux.rs` (kontener animowanego WebP, ADR-012), `codecs/apng.rs` (muxer APNG, ADR-017) i `image_engine/streaming.rs` (tryb dużych obrazów, ADR-018).
 
 ## 4. Wybór technologii
 
@@ -117,14 +117,17 @@ Warstwa `image_engine` oddziela pipeline od kodeków, więc backend libvips da s
 | `image` | 0.25 | dekodowanie JPEG/PNG/GIF/WebP/TIFF/BMP, bufory pikseli, limity | MIT/Apache-2.0 | nie |
 | `mozjpeg` | 0.10 | koder JPEG (trellis, progresywny, optymalizacja Huffmana) | IJG/Zlib/BSD | C + NASM |
 | `webp` (`libwebp-sys`) | 0.3 | koder WebP stratny/bezstratny, animacje | MIT/BSD-3 (libwebp) | C |
-| `ravif` (`rav1e`) | 0.13 | koder AVIF | BSD-2/BSD-3 | Rust + NASM |
-| `avif-decode` (`rav1d`) | 3.0 | dekoder AVIF | BSD-2/BSD-3 | Rust + NASM |
+| `zenavif` (`zenravif`, `zenrav1e`, `rav1d-safe`) | 0.1 | koder AVIF (obrazy i animacje), dekoder animowanego AVIF | **AGPL-3.0** (ADR-016) | Rust + NASM |
+| `avif-decode` (`rav1d`) | 3.0 | dekoder AVIF (obrazy statyczne) | BSD-2/BSD-3 | Rust + NASM |
+| `zenavif-parse` | 0.6 | kontener AVIF (wymiary, animacja, `irot`/`imir`, ICC, EXIF) bez dekodowania | MPL-2.0 | nie |
 | `oxipng` | 10 | bezstratna optymalizacja PNG (libdeflate, zopfli) | MIT | C (libdeflate) |
 | `imagequant` | 4 | kwantyzacja palety (stratny PNG, GIF) | **GPL-3.0-or-later** | nie |
 | `gif` | 0.14 | koder GIF (zachowanie animacji) | MIT/Apache-2.0 | nie |
 | `tiff` | 0.11 | koder TIFF z kompresją Deflate/LZW | MIT | nie |
 | `jxl-oxide` | 0.12 | dekoder JPEG XL | MIT/Apache-2.0 | nie |
-| `zune-jpegxl` | 0.5 | koder JPEG XL (bezstratny) | MIT/Apache-2.0/Zlib | nie |
+| `jxl-encoder` | 0.3 | koder JPEG XL (stratny, bezstratny, animacje) | **AGPL-3.0** (ADR-016) | nie |
+| `heic-rs` | 0.1 | dekoder HEIC/HEIF (HEVC w czystym Ruście, bez `unsafe`) | MIT/Apache-2.0 | nie |
+| `png` | 0.18 | strumieniowy odczyt i zapis PNG (tryb dużych obrazów) | MIT/Apache-2.0 | nie |
 | `fast_image_resize` | 6 | skalowanie SIMD (Lanczos3, premultiplied alpha) | MIT/Apache-2.0 | nie |
 | `moxcms` | 0.9 | zarządzanie kolorem (ICC → sRGB) | BSD-3/Apache-2.0 | nie |
 | `img-parts` | 0.4 | bezstratna edycja kontenerów JPEG/PNG/WebP (usuwanie metadanych bez rekodowania) | MIT/Apache-2.0 | nie |
@@ -138,8 +141,8 @@ Warstwa `image_engine` oddziela pipeline od kodeków, więc backend libvips da s
 | `thiserror` | 2 | ustandaryzowane błędy | MIT/Apache-2.0 | nie |
 | `tracing` | 0.1 | logowanie strukturalne | MIT | nie |
 | `directories` | 6 | ścieżki konfiguracji/logów per platforma | MIT/Apache-2.0 | nie |
-| `avif-parse` | 2.1 | wymiary AVIF bez dekodowania | MPL-2.0 | nie |
-| `rgb`, `zune-core` | 0.8 / 0.5 | typy pikseli dla koderów | MIT/Apache-2.0 | nie |
+| `rgb`, `imgref`, `zenpixels` | 0.8 / 1.12 / 0.2 | typy pikseli dla koderów | MIT/Apache-2.0/CC0 | nie |
+| `enough`, `almost-enough` | 0.4 | przerywanie kodowania AVIF/JPEG XL w trakcie obrazu | MIT/Apache-2.0 | nie |
 
 Dev: `criterion` 0.8 (benchmarki). Liczba rdzeni: `std::thread::available_parallelism` (bez `num_cpus`). Pliki tymczasowe: `tempfile` (bez `uuid`).
 
@@ -149,21 +152,21 @@ Dev: `criterion` 0.8 (benchmarki). Liczba rdzeni: `std::thread::available_parall
 
 **Frontend**: React 19, TypeScript 7, Vite 8, `@tauri-apps/api` 2, `zustand` 5; testy: Vitest + Testing Library + jsdom. Okna dialogowe plików są wywoływane po stronie Rusta (`tauri-plugin-dialog`), więc webview nie potrzebuje uprawnień do systemu plików. Style: nowoczesny CSS z custom properties (bez Tailwind — mniej zależności, pełna kontrola nad motywami).
 
-**Narzędzia build-time**: kompilator C (MSVC / clang / gcc), **NASM** (x86/x86_64), Rust stable ≥ 1.90. Na macOS i Linux dodatkowo zależności systemowe Tauri (WebKit). Szczegóły w `docs/INSTALL.md` (Etap 8).
+**Narzędzia build-time**: kompilator C (MSVC / clang / gcc), **NASM** (x86/x86_64), Rust stable ≥ 1.93. Na macOS i Linux dodatkowo zależności systemowe Tauri (WebKit). Szczegóły w `docs/INSTALL.md` (Etap 8).
 
 ## 5. Obsługa formatów
 
 | Format | Dekodowanie | Kodowanie | Tryby | Alfa | Animacja | Uwagi |
 |---|---|---|---|---|---|---|
 | JPEG | `image` (zune-jpeg; CMYK→RGB) | `mozjpeg` | stratny | — | — | progresywny, trellis, 4:2:0 / 4:4:4 przy wysokiej jakości |
-| PNG | `image` (+APNG) | `imagequant` + `oxipng` | stratny (paleta), bezstratny | ✓ | APNG: wykrywanie | stratny = kwantyzacja do ≤256 kolorów z ditheringiem |
-| WebP | `image` (image-webp) | `libwebp` | stratny, bezstratny | ✓ | ✓ (WebPAnimEncoder) | max 16383 px na bok |
-| AVIF | `avif-decode` (rav1d) | `ravif` (rav1e) | stratny | ✓ | wykrywanie (sekwencje AVIF: pierwsza klatka tylko za zgodą) | koder wolniejszy — ograniczany w trybie auto |
+| PNG | `image` (+APNG) | `imagequant` + `oxipng` (APNG: własny muxer, ADR-017) | stratny (paleta), bezstratny | ✓ | ✓ | stratny = kwantyzacja do ≤256 kolorów z ditheringiem |
+| WebP | `image` (image-webp) | `libwebp` + własny muxer (ADR-012, ADR-017) | stratny, bezstratny | ✓ | ✓ | max 16383 px na bok |
+| AVIF | `avif-decode` (rav1d), animacje: `zenavif` | `zenavif` (zenrav1e) | stratny | ✓ | ✓ | koder wolniejszy — ograniczany w trybie auto |
 | TIFF | `image` | `tiff` (Deflate) | bezstratny | ✓ | — (tylko 1. strona) | |
 | BMP | `image` | — | — | ✓ | — | tylko wejście |
 | GIF | `image` | `gif` + `imagequant` | paleta | ✓ (1-bit) | ✓ | wyjście GIF tylko przy zachowaniu animacji |
-| JPEG XL | `jxl-oxide` | `zune-jpegxl` | bezstratny | ✓ | wykrywanie | koder stratny JXL niedostępny (brak stabilnej biblioteki bez CMake) — komunikat + propozycja AVIF/WebP |
-| HEIC/HEIF | — | — | — | — | — | rozpoznawany po sygnaturze, zgłaszany czytelnie jako nieobsługiwany |
+| JPEG XL | `jxl-oxide` | `jxl-encoder` | stratny, bezstratny | ✓ | ✓ | eksperymentalny: każdy wynik weryfikowany dekodowaniem |
+| HEIC/HEIF | `heic-rs` | — | — | ✓ | — | tylko wejście; „Zachowaj format” → JPEG |
 
 **Rejestr możliwości** (`codecs::capabilities()`) zwraca dla każdego formatu: czy dekodowanie/kodowanie jest dostępne w tym buildzie, obsługiwane tryby, alfa, animacja, limity wymiarów, oraz — gdy niedostępny — powód, **alternatywę** i instrukcję włączenia. GUI wyszarza niedostępne opcje; CLI zwraca czytelny błąd. Ciężkie kodeki (`avif`, `jxl`) są cargo-feature'ami włączonymi domyślnie; build bez nich działa i poprawnie raportuje brak formatu.
 

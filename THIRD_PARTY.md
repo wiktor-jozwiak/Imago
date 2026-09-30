@@ -2,39 +2,49 @@
 
 Imago jest licencjonowane na **GPL-3.0-or-later** (zob. [LICENSE](LICENSE) i [ADR-002](docs/DECISIONS.md)).
 Poniżej wszystkie biblioteki wbudowane w aplikację i CLI (zależności runtime; bez narzędzi deweloperskich).
-Każda z tych licencji jest zgodna z GPL-3.0. Wygenerowano z `cargo tree -e normal --target all` oraz `package-lock.json`.
+Wygenerowano z `cargo tree -e normal --target all -p imago-app -p imago-cli` oraz `package-lock.json`.
 
-Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
+Kodeki animowanego AVIF i JPEG XL firmy Imazen są dostępne na licencji **AGPL-3.0-only** (alternatywnie
+komercyjnej). GPL-3.0 pozwala łączyć je z Imago (art. 13 GPL-3.0); w połączonym dziele obowiązuje dodatkowo
+art. 13 AGPL (udostępnienie źródeł użytkownikom korzystającym przez sieć), który przy lokalnej aplikacji
+bez funkcji sieciowych nie ma zastosowania. Decyzja właściciela: [ADR-016](docs/DECISIONS.md).
+Pozostałe licencje są zgodne z GPL-3.0.
+
+Najważniejsze komponenty z kodem natywnym lub kodekami:
 
 | Komponent | Crate | Licencja |
 |---|---|---|
 | libjpeg-turbo / MozJPEG | `mozjpeg-sys` | IJG AND Zlib AND BSD-3-Clause |
 | libwebp | `libwebp-sys` | BSD-3-Clause (libwebp), MIT (bindingi) |
 | libdeflate | `libdeflate-sys` | MIT |
-| rav1e (koder AV1) | `rav1e` | BSD-2-Clause |
-| rav1d (dekoder AV1) | `rav1d` | BSD-2-Clause |
+| zenrav1e / zenravif / zenavif (AVIF, animacje) | `zenavif` | AGPL-3.0-only OR komercyjna |
+| rav1d-safe (dekoder animowanego AVIF) | `rav1d-safe` | AGPL-3.0-only OR komercyjna |
+| rav1d (dekoder AVIF) | `rav1d` | BSD-2-Clause |
+| jxl-encoder (koder JPEG XL) | `jxl-encoder` | AGPL-3.0-only OR komercyjna |
+| heic-rs (dekoder HEIC) | `heic-rs` | MIT OR Apache-2.0 |
 | libimagequant | `imagequant` | GPL-3.0-or-later |
 
 ## Podsumowanie licencji (Rust)
 
 | Licencja | Liczba pakietów |
 |---|---|
-| MIT OR Apache-2.0 | 265 |
-| MIT | 136 |
-| Apache-2.0 OR MIT | 43 |
+| MIT OR Apache-2.0 | 274 |
+| MIT | 138 |
+| Apache-2.0 OR MIT | 46 |
+| MIT/Apache-2.0 | 19 |
 | Unicode-3.0 | 18 |
-| MIT/Apache-2.0 | 17 |
-| Zlib OR Apache-2.0 OR MIT | 15 |
-| BSD-3-Clause | 7 |
-| MPL-2.0 | 6 |
+| Zlib OR Apache-2.0 OR MIT | 16 |
+| MPL-2.0 | 7 |
+| BSD-3-Clause | 6 |
+| AGPL-3.0-only OR LicenseRef-Imazen-Commercial | 6 |
 | Unlicense OR MIT | 5 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
-| BSD-2-Clause | 4 |
 | Apache-2.0 | 4 |
-| MIT OR Apache-2.0 OR Zlib | 4 |
 | BSD-2-Clause OR Apache-2.0 OR MIT | 4 |
+| BSD-2-Clause | 3 |
 | Apache-2.0/MIT | 3 |
 | BSD-3-Clause OR Apache-2.0 | 3 |
+| MIT OR Apache-2.0 OR Zlib | 3 |
 | BSD-3-Clause/MIT | 2 |
 | MIT OR Zlib OR Apache-2.0 | 2 |
 | BSD-3-Clause OR MIT OR Apache-2.0 | 2 |
@@ -51,10 +61,11 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | (MIT OR Apache-2.0) AND NCSA | 1 |
 | IJG | 1 |
 | IJG AND Zlib AND BSD-3-Clause | 1 |
+| BSD-2-Clause OR MIT OR Apache-2.0 | 1 |
 | CC0-1.0 | 1 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 1 |
 
-## Pakiety Rust (562)
+## Pakiety Rust (584)
 
 | Pakiet | Wersja | Licencja |
 |---|---|---|
@@ -66,6 +77,7 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | alloc-no-stdlib | 3.0.0 | BSD-3-Clause |
 | alloc-stdlib | 0.2.4 | BSD-3-Clause |
 | alloc-stdlib | 0.3.0 | BSD-3-Clause |
+| almost-enough | 0.4.4 | MIT OR Apache-2.0 |
 | anstream | 1.0.0 | MIT OR Apache-2.0 |
 | anstyle | 1.0.14 | MIT OR Apache-2.0 |
 | anstyle-parse | 1.0.0 | MIT OR Apache-2.0 |
@@ -73,6 +85,8 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | anstyle-wincon | 3.0.11 | MIT OR Apache-2.0 |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 |
 | arbitrary | 1.4.2 | MIT OR Apache-2.0 |
+| archmage | 0.9.29 | MIT OR Apache-2.0 |
+| archmage-macros | 0.9.29 | MIT OR Apache-2.0 |
 | arg_enum_proc_macro | 0.3.4 | MIT |
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | as-slice | 0.2.1 | MIT OR Apache-2.0 |
@@ -92,11 +106,9 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | atomic-waker | 1.1.2 | Apache-2.0 OR MIT |
 | atomig | 0.4.3 | MIT/Apache-2.0 |
 | atomig-macro | 0.4.0 | MIT/Apache-2.0 |
-| av-scenechange | 0.14.1 | MIT |
 | av1-grain | 0.2.5 | BSD-2-Clause |
 | avif-decode | 3.0.0 | BSD-3-Clause |
 | avif-parse | 2.1.0 | MPL-2.0 |
-| avif-serialize | 0.8.9 | BSD-3-Clause |
 | base64 | 0.21.7 | MIT OR Apache-2.0 |
 | base64 | 0.22.1 | MIT OR Apache-2.0 |
 | base64 | 0.23.1 | MIT OR Apache-2.0 |
@@ -114,6 +126,7 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | brotli-decompressor | 6.0.1 | BSD-3-Clause/MIT |
 | bumpalo | 3.20.3 | MIT OR Apache-2.0 |
 | bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
+| bytemuck_derive | 1.12.1 | Zlib OR Apache-2.0 OR MIT |
 | byteorder | 1.5.0 | Unlicense OR MIT |
 | byteorder-lite | 0.1.0 | Unlicense OR MIT |
 | bytes | 1.12.1 | MIT |
@@ -177,6 +190,7 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | embed_plist | 1.2.2 | MIT OR Apache-2.0 |
 | encode_unicode | 1.0.0 | Apache-2.0 OR MIT |
 | endi | 1.1.1 | MIT |
+| enough | 0.4.4 | MIT OR Apache-2.0 |
 | enumflags2 | 0.7.12 | MIT OR Apache-2.0 |
 | enumflags2_derive | 0.7.12 | MIT OR Apache-2.0 |
 | equator | 0.4.2 | MIT |
@@ -208,6 +222,7 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | futures-sink | 0.3.34 | MIT OR Apache-2.0 |
 | futures-task | 0.3.34 | MIT OR Apache-2.0 |
 | futures-util | 0.3.34 | MIT OR Apache-2.0 |
+| garb | 0.2.8 | MIT OR Apache-2.0 |
 | gdk | 0.18.2 | MIT |
 | gdk-pixbuf | 0.18.5 | MIT |
 | gdk-pixbuf-sys | 0.18.0 | MIT |
@@ -215,6 +230,7 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | gdkwayland-sys | 0.18.2 | MIT |
 | gdkx11 | 0.18.2 | MIT |
 | gdkx11-sys | 0.18.2 | MIT |
+| generator | 0.8.10 | MIT/Apache-2.0 |
 | generic-array | 0.14.7 | MIT |
 | getrandom | 0.3.4 | MIT OR Apache-2.0 |
 | getrandom | 0.4.3 | MIT OR Apache-2.0 |
@@ -231,9 +247,11 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | gtk3-macros | 0.18.2 | MIT |
 | half | 2.7.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.12.3 | MIT OR Apache-2.0 |
+| hashbrown | 0.16.1 | MIT OR Apache-2.0 |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 |
 | heck | 0.4.1 | MIT OR Apache-2.0 |
 | heck | 0.5.0 | MIT OR Apache-2.0 |
+| heic-rs | 0.1.1 | MIT OR Apache-2.0 |
 | hermit-abi | 0.5.3 | MIT OR Apache-2.0 |
 | hex | 0.4.3 | MIT OR Apache-2.0 |
 | html5ever | 0.39.0 | MIT OR Apache-2.0 |
@@ -282,6 +300,8 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | jxl-bitstream | 1.1.0 | MIT OR Apache-2.0 |
 | jxl-coding | 1.0.1 | MIT OR Apache-2.0 |
 | jxl-color | 0.11.0 | MIT OR Apache-2.0 |
+| jxl-encoder | 0.3.1 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
+| jxl-encoder-simd | 0.3.0 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
 | jxl-frame | 0.13.3 | MIT OR Apache-2.0 |
 | jxl-grid | 0.6.2 | MIT OR Apache-2.0 |
 | jxl-image | 0.13.0 | MIT OR Apache-2.0 |
@@ -300,14 +320,18 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | libdeflate-sys | 1.26.1 | Apache-2.0 |
 | libdeflater | 1.26.1 | Apache-2.0 |
 | libfuzzer-sys | 0.4.13 | (MIT OR Apache-2.0) AND NCSA |
+| libm | 0.2.16 | MIT |
 | libredox | 0.1.25 | MIT |
 | libwebp-sys | 0.9.6 | MIT |
+| linear-srgb | 0.6.12 | MIT OR Apache-2.0 |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | litemap | 0.8.3 | Unicode-3.0 |
 | litrs | 1.0.0 | MIT OR Apache-2.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
+| loom | 0.7.2 | MIT |
 | loop9 | 0.1.5 | MIT |
+| magetypes | 0.9.29 | MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
 | matchers | 0.2.0 | MIT |
 | maybe-rayon | 0.1.1 | MIT |
@@ -327,14 +351,10 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | new_debug_unreachable | 1.0.6 | MIT |
 | nix | 0.31.3 | MIT |
 | no_std_io2 | 0.9.4 | Apache-2.0 OR MIT |
-| nom | 8.0.0 | MIT |
 | noop_proc_macro | 0.3.0 | MIT |
 | nu-ansi-term | 0.50.3 | MIT |
-| num-bigint | 0.4.8 | MIT OR Apache-2.0 |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 |
 | num-derive | 0.4.2 | MIT OR Apache-2.0 |
-| num-integer | 0.1.47 | MIT OR Apache-2.0 |
-| num-rational | 0.4.2 | MIT OR Apache-2.0 |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 |
 | num_enum | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
 | num_enum_derive | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
@@ -401,8 +421,8 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | rand_chacha | 0.9.0 | MIT OR Apache-2.0 |
 | rand_core | 0.9.5 | MIT OR Apache-2.0 |
 | rav1d | 1.1.0 | BSD-2-Clause |
-| rav1e | 0.8.1 | BSD-2-Clause |
-| ravif | 0.13.0 | BSD-3-Clause |
+| rav1d-disjoint-mut | 0.3.2 | BSD-2-Clause OR MIT OR Apache-2.0 |
+| rav1d-safe | 0.5.7 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
 | raw-cpuid | 11.6.0 | MIT |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
 | rayon | 1.12.0 | MIT OR Apache-2.0 |
@@ -418,9 +438,11 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
 | rustix | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 |
+| safe_unaligned_simd | 0.2.5 | MIT OR Apache-2.0 |
 | same-file | 1.0.6 | Unlicense/MIT |
 | schemars | 0.8.22 | MIT |
 | schemars_derive | 0.8.22 | MIT |
+| scoped-tls | 1.0.1 | MIT/Apache-2.0 |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 |
 | selectors | 0.38.0 | MPL-2.0 |
 | semver | 1.0.28 | MIT OR Apache-2.0 |
@@ -450,11 +472,14 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | softbuffer | 0.4.8 | MIT OR Apache-2.0 |
 | soup3 | 0.5.0 | MIT |
 | soup3-sys | 0.5.0 | MIT |
+| spin | 0.12.3 | MIT |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 |
 | strsim | 0.11.1 | MIT |
 | strum | 0.26.3 | MIT |
+| strum | 0.28.0 | MIT |
 | strum_macros | 0.26.4 | MIT |
+| strum_macros | 0.28.0 | MIT |
 | swift-rs | 1.0.8 | MIT OR Apache-2.0 |
 | symlink | 0.1.0 | MIT/Apache-2.0 |
 | syn | 1.0.109 | MIT OR Apache-2.0 |
@@ -542,10 +567,12 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | webview2-com-macros | 0.8.1 | MIT |
 | webview2-com-sys | 0.39.1 | MIT |
 | weezl | 0.1.12 | MIT OR Apache-2.0 |
+| whereat | 0.1.5 | MIT OR Apache-2.0 |
 | winapi | 0.3.9 | MIT/Apache-2.0 |
 | winapi-i686-pc-windows-gnu | 0.4.0 | MIT/Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
 | winapi-x86_64-pc-windows-gnu | 0.4.0 | MIT/Apache-2.0 |
+| winarm-cpufeatures | 0.1.2 | MIT OR Apache-2.0 |
 | window-vibrancy | 0.8.1 | Apache-2.0 OR MIT |
 | windows | 0.61.3 | MIT OR Apache-2.0 |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
@@ -595,7 +622,6 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | wry | 0.57.0 | Apache-2.0 OR MIT |
 | x11 | 2.21.0 | MIT |
 | x11-dl | 2.21.0 | MIT |
-| y4m | 0.8.0 | MIT |
 | yoke | 0.8.3 | Unicode-3.0 |
 | yoke-derive | 0.8.3 | Unicode-3.0 |
 | yuv | 0.8.19 | BSD-3-Clause OR Apache-2.0 |
@@ -603,6 +629,14 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | zbus_macros | 5.19.0 | MIT |
 | zbus_names | 4.3.4 | MIT |
 | zcheapstr | 1.1.0 | MIT |
+| zenavif | 0.1.6 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
+| zenavif-parse | 0.6.2 | MPL-2.0 |
+| zenavif-serialize | 0.1.4 | BSD-3-Clause |
+| zencodec | 0.1.26 | Apache-2.0 OR MIT |
+| zenpixels | 0.2.16 | Apache-2.0 OR MIT |
+| zenpixels-convert | 0.2.16 | Apache-2.0 OR MIT |
+| zenrav1e | 0.1.4 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
+| zenravif | 0.1.3 | AGPL-3.0-only OR LicenseRef-Imazen-Commercial |
 | zerocopy | 0.7.35 | BSD-2-Clause OR Apache-2.0 OR MIT |
 | zerocopy | 0.8.59 | BSD-2-Clause OR Apache-2.0 OR MIT |
 | zerocopy-derive | 0.7.35 | BSD-2-Clause OR Apache-2.0 OR MIT |
@@ -616,7 +650,6 @@ Najważniejsze komponenty z kodem natywnym, dołączane statycznie:
 | zmij | 1.0.23 | MIT |
 | zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib |
 | zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib |
-| zune-jpegxl | 0.5.2 | MIT OR Apache-2.0 OR Zlib |
 | zvariant | 5.15.0 | MIT |
 | zvariant_derive | 5.15.0 | MIT |
 | zvariant_utils | 4.2.0 | MIT |

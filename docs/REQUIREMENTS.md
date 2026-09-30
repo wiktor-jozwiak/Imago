@@ -70,9 +70,14 @@
 | Wymaganie | Status | Uwagi |
 |---|---|---|
 | Wejście: JPG/JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, JPEG XL | ✅ | `every_input_format_is_detected_probed_and_decoded` |
+| Wejście: HEIC/HEIF (rozszerzenie) | ✅ | `heic_photos_are_decoded`, `heic_keeps_its_look_as_jpeg_in_original_mode` |
 | Wyjście: JPEG, PNG, WebP, AVIF, TIFF | ✅ | `tests/codecs.rs` |
-| Wyjście: JPEG XL | 🟡 | tylko bezstratnie (brak stabilnego stratnego kodera bez CMake), weryfikacja round-trip — [LIMITATIONS](LIMITATIONS.md) |
+| Wyjście: JPEG XL | ✅ | stratnie i bezstratnie (jxl-encoder, ADR-016), weryfikacja dekodowaniem — `lossy_jpeg_xl_is_smaller_than_lossless_for_photos` |
 | Animacje GIF/WebP: wykrywanie, zachowanie domyślne, pierwsza klatka tylko za zgodą, ostrzeżenie | ✅ | `animations_are_preserved_unless_first_frame_is_allowed`, dialog przed startem |
+| Animacje APNG, AVIF, JPEG XL: odczyt i zapis (rozszerzenie) | ✅ | `lossless_animations_round_trip_exactly_in_apng_and_jpeg_xl`, `animated_avif_round_trips_with_high_fidelity`, `animated_gifs_can_become_apng_avif_or_jpeg_xl` |
+| Lepsza kompresja animowanego WebP (rozszerzenie) | ✅ | `webp_animations_use_blending_and_mixed_frames` (−64% w teście) |
+| Tryb dużych obrazów (rozszerzenie) | ✅ | `images_above_the_limit_use_the_large_image_mode`, `the_large_image_mode_can_be_turned_off_and_skips_other_formats` |
+| Podpisywanie instalatorów (rozszerzenie) | 🟡 | infrastruktura w `release.yml` gotowa, wymaga certyfikatu właściciela — [SIGNING](SIGNING.md) |
 | Format niedostępny: brak awarii, komunikat, alternatywa, log, instrukcja | ✅ | `capabilities.rs`, `unsupported_modes_are_reported_not_faked`, build `--no-default-features` |
 
 ## Tryb automatyczny

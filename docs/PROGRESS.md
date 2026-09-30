@@ -18,6 +18,7 @@ Legenda: ✅ zrobione · 🟡 w toku / częściowo · ⬜ do zrobienia · ⛔ za
 | 6 | Funkcje zaawansowane | ✅ |
 | 7 | CLI | ✅ |
 | 8 | Testy i release | ✅ |
+| 9 | Rozszerzenia: animacje APNG/AVIF/JXL, HEIC, lepszy WebP, duże obrazy, podpisywanie | ✅ (podpis czeka na certyfikat) |
 
 ---
 
@@ -118,6 +119,21 @@ Legenda: ✅ zrobione · 🟡 w toku / częściowo · ⬜ do zrobienia · ⛔ za
 - ✅ Dokumentacja: README, CONTRIBUTING, SECURITY, docs/INSTALL, CLI, FORMATS, PIPELINE, PERFORMANCE, LIMITATIONS, TROUBLESHOOTING, ARCHITECTURE (zaktualizowana), DECISIONS (ADR-001…015)
 - ✅ `npm run tauri build` — instalatory Windows (MSI + NSIS) zbudowane lokalnie; macOS/Linux w `release.yml`
 
+## Etap 9 — Rozszerzenia ✅
+
+- ✅ Zapis i odczyt animowanego AVIF (zenavif/zenrav1e) i JPEG XL (jxl-encoder / jxl-oxide); zapis APNG (własny muxer,
+  wspólna paleta, prostokąty zmian, nakładanie wybierane według rozmiaru) — ADR-016, ADR-017
+- ✅ Stratny JPEG XL (dotąd tylko bezstratny), weryfikacja każdego wyniku dekodowaniem
+- ✅ Animowany WebP: nakładanie klatek i mieszanie klatek stratnych/bezstratnych (−64% w teście, tryb stratny)
+- ✅ HEIC/HEIF (zdjęcia z iPhone'a) jako format wejściowy — heic-rs, profil Display P3, EXIF; „Zachowaj format” → JPEG
+- ✅ Tryb dużych obrazów: JPEG/PNG ponad limit przetwarzane pasami (ADR-018, zamiast libvips)
+- ✅ AVIF: orientacja `irot`/`imir`, profile ICC i EXIF przy odczycie; ICC osadzany przy zapisie
+- ✅ Przerywanie kodowania AVIF/JPEG XL w trakcie obrazu
+- 🟡 Podpisywanie instalatorów: `release.yml` podpisuje po dodaniu sekretów (Azure Trusted Signing, PFX, Apple),
+  `SHA256SUMS.txt` przy każdym wydaniu — sam certyfikat musi kupić właściciel ([SIGNING.md](SIGNING.md), ADR-019)
+- Weryfikacja: 11 nowych testów w `tests/formats.rs` + testy jednostkowe (APNG, streaming, WebP, orientacja);
+  test porównawczy wykazał błąd `zenavif` przy AVIF w RGB — obrazy statyczne dekoduje nadal `avif-decode`
+
 ---
 
 ## Dziennik sesji
@@ -132,7 +148,7 @@ Legenda: ✅ zrobione · 🟡 w toku / częściowo · ⬜ do zrobienia · ⛔ za
 - Etapy 5–8 ukończone: interfejs (weryfikacja E2E w prawdziwym oknie), ZIP, konfiguracja, logi, pełne CLI, benchmarki,
   testy bezpieczeństwa, CI, dokumentacja, build release. Testy: 206 Rust + 27 frontend.
 
-### 2026-09-30 — sesja 2: odświeżenie wyglądu
+### 2026-09-30 — sesja 2: odświeżenie wyglądu, repozytorium, Etap 9
 - Panel ustawień jako zwijane karty z ikoną i jednolinijkowym podsumowaniem (`utils/settingsSummary.ts`);
   domyślnie otwarte „Format” i „Jakość”, stan „zaawansowanych” zapisywany w `config.ui.showAdvanced`.
   Karta blokuje tylko pola (fieldset) w trakcie zadania — zwijanie działa nadal.
@@ -148,11 +164,13 @@ Legenda: ✅ zrobione · 🟡 w toku / częściowo · ⬜ do zrobienia · ⛔ za
   kontrolka segmentowa (wgłębiony tor, wybrana opcja „uniesiona”; formaty i gotowe ustawienia jakości) oraz lista
   opcji z kropką radia (tryb formatu, skalowanie, miejsce zapisu). Listy rozwijane mają własną strzałkę w kolorach motywu.
   Nowe tokeny `--track`, `--track-hover`, `--raised`.
+- Repozytorium git: historia w logicznych commitach; GitHub CLI zainstalowany (logowanie po stronie właściciela).
+- Decyzja właściciela: dopuszczone kodeki AGPL-3.0 (ADR-016). Etap 9 wdrożony (zob. wyżej); `cargo test --all`,
+  clippy (`-D warnings`, z i bez opcjonalnych kodeków), testy frontendu — zielone.
 
 ## Możliwe dalsze kroki
 
-- Podpisywanie instalatorów (Windows Authenticode, macOS notarization) — wymaga certyfikatów właściciela.
-- Stratny JPEG XL (libjxl przez CMake) jako opcjonalny feature.
-- Zapis APNG i animowanego AVIF.
-- Optymalizacja animowanego WebP metodą WebPAnimEncoder (blend/no-blend per klatka) bez `unsafe` w projekcie.
-- Opcjonalny backend libvips dla obrazów gigapikselowych (ADR-001).
+- Zakup certyfikatu i włączenie podpisu (instrukcja: [SIGNING.md](SIGNING.md)).
+- Test HEIC na prawdziwych zdjęciach z iPhone'a (obecny plik testowy to syntetyczny obraz 64×64).
+- Tryb dużych obrazów dla TIFF (paski/kafelki) i zapis progresywnego JPEG z pliku tymczasowego.
+- Odczyt sekwencji HEIF (Live Photo) — wymaga dekodera HEVC z predykcją międzyklatkową.

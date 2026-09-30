@@ -6,7 +6,7 @@ na udostępnienie ich na tej samej licencji.
 ## Zanim zaczniesz
 
 - Przeczytaj [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) i [docs/DECISIONS.md](docs/DECISIONS.md).
-- Środowisko: [docs/INSTALL.md](docs/INSTALL.md) (Rust stable ≥ 1.90, Node 22, kompilator C, NASM).
+- Środowisko: [docs/INSTALL.md](docs/INSTALL.md) (Rust stable ≥ 1.93, Node 22, kompilator C, NASM).
 - Stan prac i plan: [docs/PROGRESS.md](docs/PROGRESS.md), macierz wymagań: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 
 ## Układ repozytorium

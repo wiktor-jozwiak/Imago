@@ -69,7 +69,7 @@ nie są nadpisywane — nowy wynik dostaje nazwę `zdjecie (1).webp`, chyba że 
 |---|---|
 | `-f, --format <FORMAT>` | `auto` (domyślnie), `original`, `jpeg`, `png`, `webp`, `avif`, `tiff`, `gif`, `jxl`. |
 | `--quality <1-100>` | Jakość, domyślnie 82. |
-| `--lossless` | Kompresja bezstratna. Dla JPEG→JPEG oznacza usunięcie metadanych bez ponownego kodowania. |
+| `--lossless` | Kompresja bezstratna (PNG, WebP, TIFF, JPEG XL). Dla JPEG→JPEG oznacza usunięcie metadanych bez ponownego kodowania. |
 | `--max-compression` | Maksymalny wysiłek koderów (wolniej, mniejsze pliki). |
 | `--fast` | Najszybsze ustawienia koderów (tryb auto pomija AVIF). |
 | `--first-frame` | Animacje zapisuje jako pierwszą klatkę (bez tej opcji animacja jest zawsze zachowywana). |
@@ -105,6 +105,7 @@ nie są nadpisywane — nowy wynik dostaje nazwę `zdjecie (1).webp`, chyba że 
 | `--max-file-size <MB>` | Największy akceptowany plik (domyślnie 512 MB). |
 | `--max-megapixels <MP>` | Największy akceptowany obraz (domyślnie 150 MP). |
 | `--memory-budget <MB>` | Pamięć na jednocześnie dekodowane obrazy (domyślnie 2048 MB). |
+| `--no-large-image-mode` | Odrzuca obrazy ponad limity zamiast przetwarzać JPEG i PNG pasami (tryb dużych obrazów, [FORMATS.md](FORMATS.md)). |
 
 ### Raportowanie
 

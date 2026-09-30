@@ -115,3 +115,58 @@ Nowe decyzje dopisuj na końcu, nie zmieniaj numeracji.
 - **Kontekst:** `imago input.jpg --output optimized.jpg` wymaga zapisu pod konkretną nazwą, a nie w folderze.
 - **Decyzja:** nowy wariant lokalizacji wyjścia `File { path }`, dozwolony tylko dla zadań jednoplikowych. Rozszerzenie
   jest poprawiane, gdy nie pasuje do formatu (ADR-008), z ostrzeżeniem `output_extension_changed`.
+
+## ADR-016 — Kodeki AGPL-3.0 dla animowanego AVIF i JPEG XL
+
+- **Data:** 2026-09-30 · **Status:** przyjęta (decyzja właściciela projektu)
+- **Kontekst:** zapis i odczyt animowanego AVIF oraz zapis JPEG XL (stratnego i animowanego) w czystym Ruście zapewniają
+  obecnie tylko biblioteki Imazen (`zenavif`, `zenravif`, `zenrav1e`, `rav1d-safe`, `jxl-encoder`), licencjonowane na
+  AGPL-3.0-only lub komercyjnie. Alternatywy: własny muxer ISOBMFF + nakładka `unsafe` na C-API `rav1d` (łamie zasadę
+  „bez `unsafe`”) albo rezygnacja z zapisu animowanego JPEG XL.
+- **Decyzja:** te biblioteki są używane na licencji AGPL-3.0. GPL-3.0 (art. 13) pozwala łączyć kod GPL z AGPL w jednym
+  dziele; dodatkowy wymóg AGPL (źródła dla użytkowników usługi sieciowej) nie dotyczy lokalnej aplikacji bez funkcji
+  sieciowych. Obrazy statyczne AVIF nadal dekoduje `avif-decode` (BSD) — `zenavif` błędnie dekoduje pliki kodowane
+  w RGB (macierz identity), co pokazał test porównawczy.
+- **Konsekwencje:** dystrybuowane binarki są w praktyce objęte AGPL-3.0; `deny.toml` dopuszcza `AGPL-3.0-only`,
+  `THIRD_PARTY.md` to opisuje. Tryb „bezstratny” AVIF (kwantyzator 0 w `zenrav1e`) nie jest dokładny co do bitu, więc
+  nie jest oferowany. Wyłączenie cech `avif`/`jxl` daje build bez kodu AGPL.
+
+## ADR-017 — APNG i lepszy animowany WebP bez WebPAnimEncoder
+
+- **Data:** 2026-09-30 · **Status:** przyjęta (uzupełnia ADR-012)
+- **Kontekst:** APNG wymaga jednego typu kolorów i jednej palety dla wszystkich klatek; animowany WebP z niezależnie
+  kodowanych prostokątów był większy niż z `WebPAnimEncoder`.
+- **Decyzja:** APNG: klatki są zbierane (limit `max_animation_pixels`), ≤256 kolorów → paleta dokładna, tryb stratny →
+  wspólna paleta libimagequant (wynik porównywany z RGBA, wygrywa mniejszy), każda klatka jako prostokąt zmian
+  w wariancie `source` albo `over` (niezmienione piksele przezroczyste) — zostaje mniejszy; kompresja klatek przez oxipng
+  z wyłączonymi redukcjami typu kolorów. WebP: w trybie stratnym dla każdej klatki porównywane są warianty „zastąp” /
+  „nałóż” oraz stratny / bezstratny (WebP pozwala mieszać).
+- **Konsekwencje:** animacje GIF → WebP w trybie stratnym są wyraźnie mniejsze (test: −64%). W trybie bezstratnym WebP
+  nie używa nakładania: dekodery (image-webp; wzór z libwebp) liczą je w przybliżeniu i zmieniają nieprzezroczyste
+  piksele o 1.
+
+## ADR-018 — Tryb dużych obrazów bez libvips
+
+- **Data:** 2026-09-30 · **Status:** przyjęta
+- **Kontekst:** obrazy ponad limit pikseli (domyślnie 150 MP) były odrzucane. libvips (propozycja z ADR-001) wymaga
+  dołączania kilkudziesięciu bibliotek DLL, pkg-config przy budowie i nie da się go zlinkować statycznie.
+- **Decyzja:** własny tryb strumieniowy w czystym Ruście (`image_engine/streaming.rs`): JPEG (mozjpeg, odczyt i zapis
+  liniami; zapis baseline ze standardowymi tablicami Huffmana, bo optymalizacja wymaga całego obrazu) i PNG bez przeplotu
+  (crate `png`), konwersja do sRGB wiersz po wierszu (moxcms), zmniejszanie przez uśrednianie pola (na wartościach
+  premultiplikowanych), spłaszczanie przezroczystości. Włączany automatycznie, gdy obraz przekracza limity pikseli
+  lub budżet pamięci; do wyłączenia (`largeImages: "reject"`, `--no-large-image-mode`).
+- **Konsekwencje:** pamięć zależy od szerokości obrazu, nie od pola; twarda granica 65 535 px na bok (limit JPEG). Inne
+  formaty ponad limit są nadal odrzucane z czytelnym komunikatem. Orientacja EXIF jest zachowywana jako znacznik (obrót
+  wymagałby całego obrazu), powiększanie nie jest obsługiwane.
+
+## ADR-019 — Opcjonalne podpisywanie instalatorów w CI
+
+- **Data:** 2026-09-30 · **Status:** przyjęta
+- **Kontekst:** niepodpisane instalatory wywołują ostrzeżenia Windows SmartScreen i macOS Gatekeeper; certyfikat musi
+  kupić właściciel. Od 2023 r. klucze do podpisu kodu muszą być przechowywane w HSM, więc plik PFX w CI działa tylko ze
+  starszymi certyfikatami.
+- **Decyzja:** `release.yml` podpisuje automatycznie, gdy istnieją sekrety: Azure Trusted Signing (`trusted-signing-cli`
+  jako `signCommand` Tauri, także dla CLI), certyfikat PFX (odcisk w magazynie certyfikatów) albo Apple (podpis
+  i notaryzacja przez `tauri-action`). Każde wydanie dostaje `SHA256SUMS.txt`. Instrukcja: `docs/SIGNING.md`.
+- **Konsekwencje:** bez sekretów build działa jak dotąd (bez podpisu); plik `src-tauri/tauri.signing.json` powstaje
+  tylko w CI (jest w `.gitignore`).

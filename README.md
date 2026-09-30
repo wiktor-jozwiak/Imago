@@ -5,9 +5,10 @@
 
 > **English summary.** Imago is a free, open-source desktop app (Windows, macOS, Linux) and command-line tool
 > that compresses, converts and resizes images **entirely on your computer** — like online optimizers, but with no
-> uploads, no accounts, no ads and no telemetry. JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF and JPEG XL in; JPEG, PNG,
-> WebP, AVIF, TIFF and lossless JPEG XL out. Automatic mode picks the smallest format per image and never makes a
-> file bigger. See [docs/INSTALL.md](docs/INSTALL.md) and [docs/CLI.md](docs/CLI.md). License: GPL-3.0-or-later.
+> uploads, no accounts, no ads and no telemetry. JPEG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF and JPEG XL in; JPEG,
+> PNG (also animated), WebP, AVIF, TIFF and JPEG XL out, with animations kept. Automatic mode picks the smallest format per image and never makes a
+> file bigger. See [docs/INSTALL.md](docs/INSTALL.md) and [docs/CLI.md](docs/CLI.md). License: GPL-3.0-or-later
+> (the AVIF animation and JPEG XL encoders are AGPL-3.0, see [THIRD_PARTY.md](THIRD_PARTY.md)).
 
 ---
 
@@ -20,8 +21,12 @@ obrazów wyłącznie lokalnie**. Działa jak internetowe optymalizatory obrazów
 - **Tryb automatyczny** — dla każdego obrazu porównuje kilka formatów (WebP, AVIF, JPEG, PNG) i zapisuje najmniejszy.
   Zachowuje przezroczystość i animacje, **nigdy nie zwiększa pliku** i tłumaczy decyzję, np.
   *„Wybrano WebP, ponieważ zmniejszył rozmiar pliku o 71% i zachował przezroczystość.”*
-- **Formaty wejściowe:** JPEG, PNG (z APNG), WebP (z animacjami), AVIF, TIFF, BMP, GIF (z animacjami), JPEG XL.
-- **Formaty wyjściowe:** JPEG (MozJPEG), PNG (stratny jak TinyPNG lub bezstratny), WebP, AVIF, TIFF, JPEG XL (bezstratny).
+- **Formaty wejściowe:** JPEG, PNG (z APNG), WebP, AVIF, GIF, JPEG XL (wszystkie także animowane), HEIC/HEIF
+  (zdjęcia z iPhone'a), TIFF, BMP.
+- **Formaty wyjściowe:** JPEG (MozJPEG), PNG (stratny jak TinyPNG lub bezstratny, także animowany APNG), WebP, AVIF,
+  TIFF, JPEG XL (stratny i bezstratny). Animacje można zapisać jako WebP, APNG, AVIF, JPEG XL lub GIF.
+- **Tryb dużych obrazów:** JPEG i PNG ponad limit pikseli (np. panoramy 30 000 px) są przetwarzane pasami,
+  z pamięcią zależną od szerokości, a nie pola obrazu.
 - **Jakość 1–100**, tryb bezstratny, tryb maksymalnej kompresji.
 - **Skalowanie:** szerokość, wysokość, zachowanie proporcji, maksymalne wymiary, skala procentowa.
 - **Metadane:** usuwanie EXIF (GPS, aparat), zachowanie profilu ICC (lub konwersja do sRGB), obrót wg EXIF,
@@ -55,7 +60,7 @@ npm install
 npm run tauri dev
 ```
 
-Wymagane narzędzia: Rust stable ≥ 1.90, Node.js 20.19+ / 22+, kompilator C, **NASM** (tylko do budowania),
+Wymagane narzędzia: Rust stable ≥ 1.93, Node.js 20.19+ / 22+, kompilator C, **NASM** (tylko do budowania),
 na Linuxie biblioteki WebKitGTK. Gotowa aplikacja nie ma żadnych zależności uruchomieniowych poza WebView systemu.
 
 ## Wiersz poleceń

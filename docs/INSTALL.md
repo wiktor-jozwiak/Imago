@@ -23,7 +23,7 @@ Pamięć: 4 GB RAM wystarcza; domyślny budżet dla jednocześnie przetwarzanych
 
 | Narzędzie | Wersja | Po co |
 |---|---|---|
-| Rust (rustup) | stable ≥ 1.90 | backend, CLI |
+| Rust (rustup) | stable ≥ 1.93 | backend, CLI |
 | Node.js + npm | Node 20.19+ lub 22+ | interfejs (Vite, React, TypeScript) |
 | Kompilator C/C++ | MSVC Build Tools / Xcode CLT / gcc | kodeki MozJPEG, libwebp, libdeflate |
 | NASM | 2.15+ | asemblerowe przyspieszenia MozJPEG, rav1e (AVIF), rav1d |
