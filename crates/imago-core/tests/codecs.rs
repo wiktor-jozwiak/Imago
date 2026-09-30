@@ -179,6 +179,7 @@ fn icc_profiles_are_embedded() {
             image: &photo,
             icc_profile: Some(&p3),
             exif: None,
+            cancel: None,
         };
         let bytes = codecs::encode(format, input, options(90)).unwrap();
         let decoded = common::decode(&bytes);
@@ -199,6 +200,7 @@ fn exif_is_embedded_when_requested() {
             image: &photo,
             icc_profile: None,
             exif: Some(&exif),
+            cancel: None,
         };
         let bytes = codecs::encode(format, input, options(90)).unwrap();
         assert!(
@@ -248,11 +250,11 @@ fn unsupported_modes_are_reported_not_faked() {
         let error = codecs::encode(format, EncodeInput::pixels(&photo), lossless()).unwrap_err();
         assert_eq!(error.code(), "encode_failed", "{format}");
     }
-    let error =
-        codecs::encode(ImageFormat::Bmp, EncodeInput::pixels(&photo), options(80)).unwrap_err();
-    assert_eq!(error.code(), "format_unavailable");
-    let info = error.to_info();
-    assert_eq!(info.alternative.as_deref(), Some("PNG"));
+    for (format, alternative) in [(ImageFormat::Bmp, "PNG"), (ImageFormat::Heic, "JPEG")] {
+        let error = codecs::encode(format, EncodeInput::pixels(&photo), options(80)).unwrap_err();
+        assert_eq!(error.code(), "format_unavailable", "{format}");
+        assert_eq!(error.to_info().alternative.as_deref(), Some(alternative));
+    }
 }
 
 #[test]
@@ -263,11 +265,16 @@ fn webp_rejects_images_beyond_its_limit() {
     assert!(error.to_string().contains("16383"), "{error}");
 }
 
-#[cfg(feature = "jxl")]
 #[test]
-fn jpeg_xl_needs_at_least_two_pixels() {
-    let dot = DynamicImage::new_rgb8(1, 5);
-    assert!(codecs::encode(ImageFormat::Jxl, EncodeInput::pixels(&dot), lossless()).is_err());
+fn tiny_images_encode_in_every_format() {
+    let dot = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1, 5, image::Rgb([10, 200, 30])));
+    for format in available(&[ImageFormat::Jxl, ImageFormat::Avif, ImageFormat::Webp]) {
+        for options in [options(95), options(80)] {
+            let bytes = codecs::encode(format, EncodeInput::pixels(&dot), options).unwrap();
+            let decoded = common::decode(&bytes).image;
+            assert_eq!((decoded.width(), decoded.height()), (1, 5), "{format}");
+        }
+    }
 }
 
 fn frames_iter(

@@ -72,6 +72,7 @@ pub fn capability(format: ImageFormat) -> FormatCapability {
         },
         ImageFormat::Png => FormatCapability {
             lossless: true,
+            animation: true,
             ..base
         },
         ImageFormat::Webp => FormatCapability {
@@ -105,13 +106,14 @@ pub fn capability(format: ImageFormat) -> FormatCapability {
             ..base
         },
         ImageFormat::Jxl => jxl_capability(base),
+        ImageFormat::Heic => heic_capability(base),
     }
 }
 
 #[cfg(feature = "avif")]
 fn avif_capability(base: FormatCapability) -> FormatCapability {
     FormatCapability {
-        icc: false,
+        animation: true,
         unavailable_reason: Some("lossless AVIF is not supported by the AV1 encoder".into()),
         alternative: Some(ImageFormat::Webp),
         ..base
@@ -138,16 +140,9 @@ fn avif_capability(base: FormatCapability) -> FormatCapability {
 #[cfg(feature = "jxl")]
 fn jxl_capability(base: FormatCapability) -> FormatCapability {
     FormatCapability {
-        lossy: false,
         lossless: true,
-        icc: false,
-        exif: false,
+        animation: true,
         experimental: true,
-        unavailable_reason: Some(
-            "lossy JPEG XL encoding is not available (no stable pure-Rust encoder); images are written losslessly"
-                .into(),
-        ),
-        alternative: Some(ImageFormat::Avif),
         ..base
     }
 }
@@ -163,6 +158,37 @@ fn jxl_capability(base: FormatCapability) -> FormatCapability {
         unavailable_reason: Some("this build of Imago was compiled without JPEG XL support".into()),
         alternative: Some(ImageFormat::Webp),
         how_to_enable: Some("Rebuild with the `jxl` feature of imago-core.".into()),
+        ..base
+    }
+}
+
+#[cfg(feature = "heic")]
+fn heic_capability(base: FormatCapability) -> FormatCapability {
+    FormatCapability {
+        encode: false,
+        lossy: false,
+        icc: false,
+        exif: false,
+        unavailable_reason: Some("HEIC is supported as an input format only".into()),
+        alternative: Some(ImageFormat::Jpeg),
+        how_to_enable: Some(
+            "Choose JPEG for the widest compatibility, or AVIF/WebP for smaller files.".into(),
+        ),
+        ..base
+    }
+}
+
+#[cfg(not(feature = "heic"))]
+fn heic_capability(base: FormatCapability) -> FormatCapability {
+    FormatCapability {
+        decode: false,
+        encode: false,
+        lossy: false,
+        icc: false,
+        exif: false,
+        unavailable_reason: Some("this build of Imago was compiled without HEIC support".into()),
+        alternative: Some(ImageFormat::Jpeg),
+        how_to_enable: Some("Rebuild with the `heic` feature of imago-core.".into()),
         ..base
     }
 }
@@ -203,6 +229,13 @@ mod tests {
                 assert!(capability.format.supports_animation());
             }
         }
+    }
+
+    #[test]
+    fn heic_is_input_only_and_suggests_jpeg() {
+        let heic = capability(ImageFormat::Heic);
+        assert!(!heic.encode);
+        assert_eq!(heic.alternative, Some(ImageFormat::Jpeg));
     }
 
     #[test]

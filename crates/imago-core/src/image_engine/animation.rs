@@ -1,4 +1,4 @@
-//! Frame-by-frame decoding of animated GIF, WebP and APNG.
+//! Frame-by-frame decoding of animated GIF, WebP, APNG, AVIF and JPEG XL.
 //!
 //! Frames are produced lazily by an iterator, fully composited onto the
 //! canvas, so encoders can stream them without holding the animation in memory.
@@ -9,7 +9,7 @@ use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::metadata::LoopCount;
-use image::{AnimationDecoder, DynamicImage, Frames, ImageDecoder, RgbaImage};
+use image::{AnimationDecoder, DynamicImage, ImageDecoder, RgbaImage};
 
 use crate::codecs::{AnimationFrame, AnimationInfo};
 use crate::errors::{ImagoError, Result};
@@ -20,17 +20,142 @@ use crate::settings::{ImageFormat, Limits};
 
 /// Formats whose animations Imago can decode.
 pub fn can_decode_animation(format: ImageFormat) -> bool {
-    matches!(
-        format,
-        ImageFormat::Gif | ImageFormat::Webp | ImageFormat::Png
-    )
+    matches!(format, ImageFormat::Gif | ImageFormat::Webp | ImageFormat::Png)
+        || (format == ImageFormat::Avif && cfg!(feature = "avif"))
+        || (format == ImageFormat::Jxl && cfg!(feature = "jxl"))
+}
+
+/// A frame as the decoder returns it.
+struct RawFrame {
+    buffer: RgbaImage,
+    delay_ms: u32,
+    left: u32,
+    top: u32,
+}
+
+/// The decoder behind an [`AnimationSource`].
+enum FrameReader<'a> {
+    Image(image::Frames<'a>),
+    #[cfg(feature = "avif")]
+    Avif(Box<zenavif::AnimationDecoder>),
+    #[cfg(feature = "jxl")]
+    Jxl {
+        image: Box<jxl_oxide::JxlImage>,
+        next: usize,
+        /// Milliseconds per animation tick.
+        tick_ms: f64,
+    },
+}
+
+impl FrameReader<'_> {
+    fn next_frame(&mut self, format: ImageFormat) -> Option<Result<RawFrame>> {
+        match self {
+            FrameReader::Image(frames) => {
+                let frame = match frames.next()? {
+                    Ok(frame) => frame,
+                    Err(error) => return Some(Err(decode_error(format, error))),
+                };
+                let (numerator, denominator) = frame.delay().numer_denom_ms();
+                let delay_ms = numerator.checked_div(denominator).unwrap_or(0);
+                let (left, top) = (frame.left(), frame.top());
+                Some(Ok(RawFrame {
+                    buffer: frame.into_buffer(),
+                    delay_ms,
+                    left,
+                    top,
+                }))
+            }
+            #[cfg(feature = "avif")]
+            FrameReader::Avif(decoder) => {
+                let frame = match decoder.next_frame(&enough::Unstoppable) {
+                    Ok(Some(frame)) => frame,
+                    Ok(None) => return None,
+                    Err(error) => {
+                        return Some(Err(crate::image_engine::decode::avif_error(
+                            error.decompose().0,
+                        )));
+                    }
+                };
+                let buffer = match crate::image_engine::decode::avif_pixels(&frame.pixels) {
+                    Ok(image) => image.to_rgba8(),
+                    Err(error) => return Some(Err(error)),
+                };
+                Some(Ok(RawFrame {
+                    buffer,
+                    delay_ms: frame.duration_ms,
+                    left: 0,
+                    top: 0,
+                }))
+            }
+            #[cfg(feature = "jxl")]
+            FrameReader::Jxl {
+                image,
+                next,
+                tick_ms,
+            } => {
+                if *next >= image.num_loaded_keyframes() {
+                    return None;
+                }
+                let index = *next;
+                *next += 1;
+                Some(jxl_frame(image, index, *tick_ms))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "jxl")]
+fn jxl_frame(image: &jxl_oxide::JxlImage, index: usize, tick_ms: f64) -> Result<RawFrame> {
+    let format = ImageFormat::Jxl;
+    let error = |message: String| ImagoError::Decode {
+        format: format.display_name().into(),
+        message,
+    };
+    let render = image
+        .render_frame(index)
+        .map_err(|e| error(e.to_string()))?;
+    let mut stream = render.stream();
+    let (width, height, channels) = (stream.width(), stream.height(), stream.channels());
+    let mut samples = vec![0u8; width as usize * height as usize * channels as usize];
+    stream.write_to_buffer(&mut samples);
+    let buffer = match channels {
+        1 => DynamicImage::ImageLuma8(
+            image::GrayImage::from_raw(width, height, samples)
+                .ok_or_else(|| error("unexpected frame size".into()))?,
+        )
+        .to_rgba8(),
+        2 => DynamicImage::ImageLumaA8(
+            image::GrayAlphaImage::from_raw(width, height, samples)
+                .ok_or_else(|| error("unexpected frame size".into()))?,
+        )
+        .to_rgba8(),
+        3 => DynamicImage::ImageRgb8(
+            image::RgbImage::from_raw(width, height, samples)
+                .ok_or_else(|| error("unexpected frame size".into()))?,
+        )
+        .to_rgba8(),
+        4 => RgbaImage::from_raw(width, height, samples)
+            .ok_or_else(|| error("unexpected frame size".into()))?,
+        _ => return Err(error("CMYK animations are not supported".into())),
+    };
+    let delay = f64::from(render.duration()) * tick_ms;
+    Ok(RawFrame {
+        buffer,
+        delay_ms: if delay.is_finite() && delay > 0.0 {
+            delay.round().min(f64::from(u32::MAX)) as u32
+        } else {
+            0
+        },
+        left: 0,
+        top: 0,
+    })
 }
 
 /// An open animation: global info plus a lazy frame iterator.
 pub struct AnimationSource<'a> {
     /// Canvas size (after resizing) and loop count.
     pub info: AnimationInfo,
-    frames: Frames<'a>,
+    frames: FrameReader<'a>,
     canvas: (u32, u32),
     target: Option<(u32, u32)>,
     pixels_left: u64,
@@ -46,6 +171,13 @@ impl std::fmt::Debug for AnimationSource<'_> {
     }
 }
 
+fn loop_count(count: LoopCount) -> u16 {
+    match count {
+        LoopCount::Infinite => 0,
+        LoopCount::Finite(count) => u16::try_from(count.get()).unwrap_or(u16::MAX),
+    }
+}
+
 /// Opens an animation; frames are resized to `target` when given.
 pub fn open_animation<'a>(
     bytes: &'a [u8],
@@ -54,30 +186,34 @@ pub fn open_animation<'a>(
     target: Option<(u32, u32)>,
 ) -> Result<AnimationSource<'a>> {
     let reader = Cursor::new(bytes);
-    let (canvas, loop_count, frames) = match format {
+    let (canvas, loops, frames) = match format {
         ImageFormat::Gif => {
             let mut decoder = GifDecoder::new(reader).map_err(|e| decode_error(format, e))?;
             decoder
                 .set_limits(decoder_limits(limits))
                 .map_err(|e| decode_error(format, e))?;
             let canvas = decoder.dimensions();
-            let loops = decoder.loop_count();
-            (canvas, loops, decoder.into_frames())
+            let loops = loop_count(decoder.loop_count());
+            (canvas, loops, FrameReader::Image(decoder.into_frames()))
         }
         ImageFormat::Webp => {
             let decoder = WebPDecoder::new(reader).map_err(|e| decode_error(format, e))?;
             let canvas = decoder.dimensions();
-            let loops = decoder.loop_count();
-            (canvas, loops, decoder.into_frames())
+            let loops = loop_count(decoder.loop_count());
+            (canvas, loops, FrameReader::Image(decoder.into_frames()))
         }
         ImageFormat::Png => {
             let decoder = PngDecoder::with_limits(reader, decoder_limits(limits))
                 .map_err(|e| decode_error(format, e))?;
             let canvas = decoder.dimensions();
             let apng = decoder.apng().map_err(|e| decode_error(format, e))?;
-            let loops = apng.loop_count();
-            (canvas, loops, apng.into_frames())
+            let loops = loop_count(apng.loop_count());
+            (canvas, loops, FrameReader::Image(apng.into_frames()))
         }
+        #[cfg(feature = "avif")]
+        ImageFormat::Avif => open_avif(bytes, limits)?,
+        #[cfg(feature = "jxl")]
+        ImageFormat::Jxl => open_jxl(bytes, limits)?,
         other => {
             return Err(ImagoError::Decode {
                 format: other.display_name().into(),
@@ -91,10 +227,7 @@ pub fn open_animation<'a>(
         info: AnimationInfo {
             width,
             height,
-            loop_count: match loop_count {
-                LoopCount::Infinite => 0,
-                LoopCount::Finite(count) => u16::try_from(count.get()).unwrap_or(u16::MAX),
-            },
+            loop_count: loops,
         },
         frames,
         canvas,
@@ -104,13 +237,67 @@ pub fn open_animation<'a>(
     })
 }
 
+#[cfg(feature = "avif")]
+fn open_avif<'a>(bytes: &[u8], limits: &Limits) -> Result<((u32, u32), u16, FrameReader<'a>)> {
+    use crate::image_engine::decode::{avif_config, avif_error};
+
+    let parser = zenavif_parse::AvifParser::from_bytes(bytes).map_err(|e| ImagoError::Decode {
+        format: ImageFormat::Avif.display_name().into(),
+        message: e.to_string(),
+    })?;
+    let meta = parser.primary_metadata().map_err(|e| ImagoError::Decode {
+        format: ImageFormat::Avif.display_name().into(),
+        message: e.to_string(),
+    })?;
+    let canvas = (meta.max_frame_width.get(), meta.max_frame_height.get());
+    let decoder = zenavif::AnimationDecoder::new(bytes, &avif_config(limits))
+        .map_err(|error| avif_error(error.decompose().0))?;
+    let loops = u16::try_from(decoder.info().loop_count).unwrap_or(u16::MAX);
+    Ok((canvas, loops, FrameReader::Avif(Box::new(decoder))))
+}
+
+#[cfg(feature = "jxl")]
+fn open_jxl<'a>(bytes: &[u8], limits: &Limits) -> Result<((u32, u32), u16, FrameReader<'a>)> {
+    let format = ImageFormat::Jxl;
+    let error = |message: String| ImagoError::Decode {
+        format: format.display_name().into(),
+        message,
+    };
+    let image = jxl_oxide::JxlImage::builder()
+        .read(Cursor::new(bytes))
+        .map_err(|e| error(e.to_string()))?;
+    let canvas = (image.width(), image.height());
+    check_dimensions(canvas.0, canvas.1, limits)?;
+    let animation = image
+        .image_header()
+        .metadata
+        .animation
+        .as_ref()
+        .ok_or_else(|| error("the image is not an animation".into()))?;
+    let tick_ms = if animation.tps_numerator == 0 {
+        0.0
+    } else {
+        1000.0 * f64::from(animation.tps_denominator) / f64::from(animation.tps_numerator)
+    };
+    let loops = u16::try_from(animation.num_loops).unwrap_or(u16::MAX);
+    Ok((
+        canvas,
+        loops,
+        FrameReader::Jxl {
+            image: Box::new(image),
+            next: 0,
+            tick_ms,
+        },
+    ))
+}
+
 impl Iterator for AnimationSource<'_> {
     type Item = Result<AnimationFrame>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let frame = match self.frames.next()? {
+        let frame = match self.frames.next_frame(self.format)? {
             Ok(frame) => frame,
-            Err(error) => return Some(Err(decode_error(self.format, error))),
+            Err(error) => return Some(Err(error)),
         };
         let pixels = u64::from(self.canvas.0) * u64::from(self.canvas.1);
         if pixels > self.pixels_left {
@@ -122,10 +309,12 @@ impl Iterator for AnimationSource<'_> {
         }
         self.pixels_left -= pixels;
 
-        let (numerator, denominator) = frame.delay().numer_denom_ms();
-        let delay_ms = numerator.checked_div(denominator).unwrap_or(0);
-        let (left, top) = (frame.left(), frame.top());
-        let buffer = frame.into_buffer();
+        let RawFrame {
+            buffer,
+            delay_ms,
+            left,
+            top,
+        } = frame;
         let canvas = if buffer.dimensions() == self.canvas && (left, top) == (0, 0) {
             buffer
         } else {

@@ -30,11 +30,13 @@ pub enum ImageFormat {
     Gif,
     /// JPEG XL.
     Jxl,
+    /// HEIC / HEIF with HEVC-coded pictures (input only; iPhone photos).
+    Heic,
 }
 
 impl ImageFormat {
     /// Every known format.
-    pub const ALL: [ImageFormat; 8] = [
+    pub const ALL: [ImageFormat; 9] = [
         ImageFormat::Jpeg,
         ImageFormat::Png,
         ImageFormat::Webp,
@@ -43,6 +45,7 @@ impl ImageFormat {
         ImageFormat::Bmp,
         ImageFormat::Gif,
         ImageFormat::Jxl,
+        ImageFormat::Heic,
     ];
 
     /// Human-readable name ("JPEG", "WebP", ...).
@@ -56,6 +59,7 @@ impl ImageFormat {
             ImageFormat::Bmp => "BMP",
             ImageFormat::Gif => "GIF",
             ImageFormat::Jxl => "JPEG XL",
+            ImageFormat::Heic => "HEIC",
         }
     }
 
@@ -70,6 +74,7 @@ impl ImageFormat {
             ImageFormat::Bmp => "bmp",
             ImageFormat::Gif => "gif",
             ImageFormat::Jxl => "jxl",
+            ImageFormat::Heic => "heic",
         }
     }
 
@@ -84,6 +89,7 @@ impl ImageFormat {
             ImageFormat::Bmp => &["bmp", "dib"],
             ImageFormat::Gif => &["gif"],
             ImageFormat::Jxl => &["jxl"],
+            ImageFormat::Heic => &["heic", "heif", "hif"],
         }
     }
 
@@ -114,6 +120,7 @@ impl ImageFormat {
             ImageFormat::Bmp => "image/bmp",
             ImageFormat::Gif => "image/gif",
             ImageFormat::Jxl => "image/jxl",
+            ImageFormat::Heic => "image/heic",
         }
     }
 
@@ -124,7 +131,14 @@ impl ImageFormat {
 
     /// Whether the format can store an animation (as far as Imago can write it).
     pub fn supports_animation(self) -> bool {
-        matches!(self, ImageFormat::Webp | ImageFormat::Gif)
+        matches!(
+            self,
+            ImageFormat::Webp
+                | ImageFormat::Gif
+                | ImageFormat::Png
+                | ImageFormat::Avif
+                | ImageFormat::Jxl
+        )
     }
 }
 
@@ -455,8 +469,21 @@ pub struct OptimizeSettings {
     pub transparency: TransparencyPolicy,
     /// Safety limits.
     pub limits: Limits,
+    /// Images above the limits: large-image mode or rejection.
+    pub large_images: LargeImages,
     /// Number of worker threads (`None` = logical cores − 1, at least 1).
     pub workers: Option<usize>,
+}
+
+/// What happens to images above the pixel limit or the memory budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LargeImages {
+    /// Process JPEG and PNG row by row (large-image mode); other formats are rejected.
+    #[default]
+    Stream,
+    /// Reject every image above the limits.
+    Reject,
 }
 
 /// Upper bound for the worker count accepted from users.
@@ -631,7 +658,8 @@ mod tests {
         assert_eq!(ImageFormat::from_extension("JPG"), Some(ImageFormat::Jpeg));
         assert_eq!(ImageFormat::from_extension("jpeg"), Some(ImageFormat::Jpeg));
         assert_eq!(ImageFormat::from_extension("TIFF"), Some(ImageFormat::Tiff));
-        assert_eq!(ImageFormat::from_extension("heic"), None);
+        assert_eq!(ImageFormat::from_extension("HEIF"), Some(ImageFormat::Heic));
+        assert_eq!(ImageFormat::from_extension("psd"), None);
         assert_eq!(ImageFormat::parse("jpeg-xl"), Some(ImageFormat::Jxl));
         assert_eq!(ImageFormat::parse(" WebP "), Some(ImageFormat::Webp));
     }
@@ -643,7 +671,10 @@ mod tests {
         }
         assert!(ImageFormat::Webp.supports_animation());
         assert!(ImageFormat::Gif.supports_animation());
-        assert!(!ImageFormat::Avif.supports_animation());
+        assert!(ImageFormat::Png.supports_animation());
+        assert!(ImageFormat::Avif.supports_animation());
+        assert!(!ImageFormat::Jpeg.supports_animation());
+        assert!(!ImageFormat::Heic.supports_animation());
     }
 
     #[test]

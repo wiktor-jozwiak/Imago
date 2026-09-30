@@ -10,11 +10,14 @@ keywords.workspace = true
 categories.workspace = true
 
 [features]
-default = ["avif", "jxl"]
-# AVIF encoding (rav1e) and decoding (rav1d). Needs NASM on x86/x86_64.
-avif = ["dep:ravif", "dep:avif-decode", "dep:avif-parse"]
-# JPEG XL decoding (jxl-oxide) and lossless encoding (zune-jpegxl).
-jxl = ["dep:jxl-oxide", "dep:zune-jpegxl", "dep:zune-core"]
+default = ["avif", "jxl", "heic"]
+# AVIF still images and animations: encoding (zenravif/rav1e), still decoding
+# (avif-decode/rav1d) and animation decoding (zenavif). Needs NASM on x86/x86_64.
+avif = ["dep:zenavif", "dep:zenavif-parse", "dep:avif-decode", "dep:almost-enough", "dep:imgref", "dep:zenpixels"]
+# JPEG XL decoding (jxl-oxide) and encoding (jxl-encoder), including animations.
+jxl = ["dep:jxl-oxide", "dep:jxl-encoder"]
+# HEIC/HEIF decoding (heic-rs). Read-only: HEIC is never written.
+heic = ["dep:heic-rs"]
 
 [dependencies]
 serde.workspace = true
@@ -31,13 +34,19 @@ tiff.workspace = true
 fast_image_resize.workspace = true
 moxcms.workspace = true
 img-parts.workspace = true
-ravif = { workspace = true, optional = true }
+crc32fast.workspace = true
+png.workspace = true
+zenavif = { workspace = true, optional = true }
+zenavif-parse = { workspace = true, optional = true }
 avif-decode = { workspace = true, optional = true }
-avif-parse = { workspace = true, optional = true }
+almost-enough = { workspace = true, optional = true }
+imgref = { workspace = true, optional = true }
+zenpixels = { workspace = true, optional = true }
+enough.workspace = true
 rgb.workspace = true
 jxl-oxide = { workspace = true, optional = true }
-zune-jpegxl = { workspace = true, optional = true }
-zune-core = { workspace = true, optional = true }
+jxl-encoder = { workspace = true, optional = true }
+heic-rs = { workspace = true, optional = true }
 
 tempfile.workspace = true
 same-file.workspace = true

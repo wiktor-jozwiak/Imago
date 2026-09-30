@@ -21,7 +21,7 @@ use image::DynamicImage;
 use image::metadata::Orientation;
 
 use crate::cancel::CancelToken;
-use crate::codecs::{self, EncodeInput, EncodeOptions, capability};
+use crate::codecs::{self, AnimationInfo, EncodeInput, EncodeOptions, capability};
 use crate::errors::{ImagoError, Result};
 use crate::filesystem::paths::{ClaimedPaths, Resolution, destination_dir, output_path};
 use crate::filesystem::safe_write::{self, Placement, TempCleanup, WriteOptions, write_atomic};
@@ -31,6 +31,7 @@ use crate::image_engine::color::{self, AlphaUsage, IccKind};
 use crate::image_engine::detection;
 use crate::image_engine::probe::{self, ImageProbe};
 use crate::image_engine::resize::{ResizeQuality, resize, target_dimensions};
+use crate::image_engine::streaming;
 use crate::image_engine::{decode, guard_decoder};
 use crate::jobs::{
     CandidateSize, Decision, DecisionReason, FileReport, FileStatus, FileTask, Stage, Warning,
@@ -38,8 +39,8 @@ use crate::jobs::{
 };
 use crate::metadata;
 use crate::settings::{
-    AnimationPolicy, ConflictPolicy, FormatChoice, ImageFormat, OptimizeSettings,
-    TransparencyPolicy, WhenLarger,
+    AnimationPolicy, ConflictPolicy, Effort, FormatChoice, ImageFormat, LargeImages,
+    OptimizeSettings, TransparencyPolicy, WhenLarger,
 };
 use crate::workers::MemoryBudget;
 
@@ -136,9 +137,10 @@ struct Chosen {
 enum Plan {
     /// Decode, transform and encode a still image.
     Still(StillTarget),
-    /// Re-encode an animation into `target` (and/or keep the original).
+    /// Re-encode an animation into each of `targets` (the smallest wins) and/or
+    /// keep the original. No targets means the original is kept.
     Animated {
-        target: Option<ImageFormat>,
+        targets: Vec<ImageFormat>,
         include_original: bool,
     },
     /// Keep the original bytes (metadata removed losslessly where possible).
@@ -171,7 +173,12 @@ fn run(task: &FileTask, context: &PipelineContext<'_>, report: &mut FileReport) 
 
     // 4–9: signature, real format, dimensions, animation, alpha, metadata.
     (context.progress)(Stage::Analyzing);
-    let probe = probe::probe_bytes(&bytes, &settings.limits)?;
+    let probe_limits = match settings.large_images {
+        LargeImages::Stream => streaming_probe_limits(&settings.limits),
+        LargeImages::Reject => settings.limits,
+    };
+    let probe = probe::probe_bytes(&bytes, &probe_limits)?;
+    let large = exceeds_limits(&probe, settings, context.budget)?;
     report.input_format = Some(probe.format);
     report.input_dimensions = Some(probe.display_dimensions());
     if let Some(named) = detection::format_from_extension(path)
@@ -199,13 +206,19 @@ fn run(task: &FileTask, context: &PipelineContext<'_>, report: &mut FileReport) 
         ));
     }
 
-    let memory = context.budget.acquire(estimate_memory(&probe), cancel)?;
+    let estimate = if large {
+        streaming_memory(&probe)
+    } else {
+        estimate_memory(&probe)
+    };
+    let memory = context.budget.acquire(estimate, cancel)?;
     let chosen = match plan {
+        Plan::Still(target) if large => process_large(&bytes, &probe, target, context, report)?,
         Plan::Still(target) => process_still(&bytes, &probe, target, context, report)?,
         Plan::Animated {
-            target,
+            targets,
             include_original,
-        } => process_animation(&bytes, &probe, target, include_original, context, report)?,
+        } => process_animation(&bytes, &probe, &targets, include_original, context, report)?,
         Plan::Original => {
             keep_original(&bytes, &probe, settings, report, DecisionReason::Requested)?.ok_or_else(
                 || {
@@ -237,16 +250,15 @@ fn plan(probe: &ImageProbe, settings: &OptimizeSettings, report: &mut FileReport
             ));
             return Ok(Plan::Original);
         }
-        let original_target = match probe.format {
-            ImageFormat::Gif => Some(ImageFormat::Gif),
-            ImageFormat::Webp => Some(ImageFormat::Webp),
-            _ => None, // APNG cannot be written; the original is kept.
+        let writable = |format: ImageFormat| {
+            format.supports_animation() && capability(format).encode && capability(format).animation
         };
-        let (mut target, include_original) = match settings.format {
-            FormatChoice::Auto => (Some(ImageFormat::Webp), true),
-            FormatChoice::Original => (original_target, true),
-            FormatChoice::Fixed(format) if format.supports_animation() => {
-                (Some(format), format == probe.format)
+        let original_target = Some(probe.format).filter(|format| writable(*format));
+        let (mut targets, include_original): (Vec<ImageFormat>, bool) = match settings.format {
+            FormatChoice::Auto => (animation_auto_targets(settings), true),
+            FormatChoice::Original => (original_target.into_iter().collect(), true),
+            FormatChoice::Fixed(format) if writable(format) => {
+                (vec![format], format == probe.format)
             }
             FormatChoice::Fixed(format) => {
                 report.warnings.push(Warning::new(
@@ -256,22 +268,23 @@ fn plan(probe: &ImageProbe, settings: &OptimizeSettings, report: &mut FileReport
                         probe.format
                     ),
                 ));
-                (original_target, true)
+                (original_target.into_iter().collect(), true)
             }
         };
         let resizing = target_dimensions(probe.width, probe.height, &settings.resize).is_some();
-        if target == Some(ImageFormat::Gif) && lossless && !resizing {
-            // Re-encoding a GIF is never lossless; keeping it is.
-            target = None;
+        if lossless && !resizing {
+            // Formats without a lossless mode (GIF palettes, AVIF) would lose
+            // quality; keeping the original does not.
+            targets.retain(|format| capability(*format).lossless);
         }
-        if target.is_none() && resizing {
+        if targets.is_empty() && resizing {
             report.warnings.push(Warning::new(
                 "resize_not_applied",
                 "the animation could not be re-encoded, so it was not resized",
             ));
         }
         return Ok(Plan::Animated {
-            target,
+            targets,
             include_original,
         });
     }
@@ -286,6 +299,8 @@ fn plan(probe: &ImageProbe, settings: &OptimizeSettings, report: &mut FileReport
     let target = match settings.format {
         FormatChoice::Auto => return Ok(Plan::Still(StillTarget::Auto)),
         FormatChoice::Original if probe.format == ImageFormat::Bmp => ImageFormat::Png,
+        // HEIC cannot be written; JPEG keeps photos compatible everywhere.
+        FormatChoice::Original if probe.format == ImageFormat::Heic => ImageFormat::Jpeg,
         FormatChoice::Original => probe.format,
         FormatChoice::Fixed(format) => format,
     };
@@ -333,7 +348,7 @@ fn existing_output(
             ImageFormat::Png,
             probe.format,
         ],
-        Plan::Animated { target, .. } => target.iter().copied().chain([probe.format]).collect(),
+        Plan::Animated { targets, .. } => targets.iter().copied().chain([probe.format]).collect(),
         Plan::Original => vec![probe.format],
     };
     for format in formats {
@@ -348,6 +363,70 @@ fn existing_output(
 
 /// Rough peak memory for one file: decoded pixels, a resized copy, encoder
 /// buffers and the file itself.
+/// Limits used while probing when the large-image mode is on: dimensions
+/// are only bounded by what JPEG can store.
+fn streaming_probe_limits(limits: &crate::settings::Limits) -> crate::settings::Limits {
+    crate::settings::Limits {
+        max_dimension: limits.max_dimension.max(streaming::MAX_STREAM_SIDE),
+        max_pixels: limits
+            .max_pixels
+            .max(u64::from(streaming::MAX_STREAM_SIDE) * u64::from(streaming::MAX_STREAM_SIDE)),
+        ..*limits
+    }
+}
+
+/// Whether the image should use the large-image mode: it is above the pixel
+/// limits, or it would not fit into the memory budget and can be streamed.
+/// Errors when it is above the limits and cannot be streamed.
+fn exceeds_limits(
+    probe: &ImageProbe,
+    settings: &OptimizeSettings,
+    budget: &MemoryBudget,
+) -> Result<bool> {
+    let limits = &settings.limits;
+    let over_limits = probe.width > limits.max_dimension
+        || probe.height > limits.max_dimension
+        || probe.pixel_count() > limits.max_pixels;
+    let over_budget = estimate_memory(probe) > budget.total();
+    if !over_limits && !over_budget {
+        return Ok(false);
+    }
+    let streamable = settings.large_images == LargeImages::Stream
+        && streaming::can_stream_input(probe.format)
+        && !probe.animated;
+    if streamable {
+        return Ok(true);
+    }
+    if !over_limits {
+        // Within the limits but above the budget: it runs alone, as before.
+        return Ok(false);
+    }
+    let reason = if settings.large_images == LargeImages::Stream {
+        format!(
+            "the image exceeds the limit of {} megapixels; the large-image mode handles only JPEG and PNG",
+            limits.max_pixels / 1_000_000
+        )
+    } else {
+        format!(
+            "the image exceeds the limit of {} megapixels",
+            limits.max_pixels / 1_000_000
+        )
+    };
+    Err(ImagoError::DimensionsTooLarge {
+        width: probe.width,
+        height: probe.height,
+        reason,
+    })
+}
+
+/// Working memory of the large-image mode: a few rows plus the file itself
+/// and the compressed result.
+fn streaming_memory(probe: &ImageProbe) -> u64 {
+    u64::from(probe.width)
+        .saturating_mul(64)
+        .saturating_add(probe.file_size.saturating_mul(3))
+}
+
 fn estimate_memory(probe: &ImageProbe) -> u64 {
     let bytes_per_pixel: u64 = if probe.bit_depth > 8 { 8 } else { 4 };
     let pixels = probe.pixel_count().saturating_mul(bytes_per_pixel);
@@ -355,6 +434,162 @@ fn estimate_memory(probe: &ImageProbe) -> u64 {
     pixels
         .saturating_mul(factor)
         .saturating_add(probe.file_size.saturating_mul(2))
+}
+
+/// Steps 11–18 in the large-image mode: JPEG/PNG converted row by row.
+fn process_large(
+    bytes: &[u8],
+    probe: &ImageProbe,
+    target: StillTarget,
+    context: &PipelineContext<'_>,
+    report: &mut FileReport,
+) -> Result<Chosen> {
+    let settings = context.settings;
+    report.warnings.push(Warning::new(
+        "large_image_mode",
+        format!(
+            "the image has {} megapixels, so it was processed row by row (large-image mode)",
+            probe.pixel_count() / 1_000_000
+        ),
+    ));
+    (context.progress)(Stage::Decoding);
+    let source = guard_decoder(probe.format, || streaming::inspect(bytes, probe.format))?;
+    let has_alpha = source.channels == 4;
+
+    let mut format = match target {
+        StillTarget::Auto if has_alpha => ImageFormat::Png,
+        StillTarget::Auto => ImageFormat::Jpeg,
+        StillTarget::Format(format) if streaming::can_stream_output(format) => format,
+        StillTarget::Format(format) => {
+            return Err(ImagoError::InvalidSettings(format!(
+                "{format} cannot be written in the large-image mode; choose JPEG or PNG"
+            )));
+        }
+    };
+    let mut flatten = false;
+    if format == ImageFormat::Jpeg && has_alpha {
+        match settings.transparency {
+            TransparencyPolicy::FlattenWhite => {
+                flatten = true;
+                report.warnings.push(Warning::new(
+                    "transparency_flattened",
+                    "transparent areas were filled with white",
+                ));
+            }
+            TransparencyPolicy::Preserve => {
+                format = ImageFormat::Png;
+                report.warnings.push(Warning::new(
+                    "transparency_kept_in_other_format",
+                    "JPEG cannot store transparency; the image was saved as PNG",
+                ));
+            }
+        }
+    }
+    if settings.compression.lossless && format == ImageFormat::Jpeg {
+        return Err(ImagoError::InvalidSettings(
+            "JPEG has no lossless mode; choose PNG for lossless output".into(),
+        ));
+    }
+
+    // Size: the pixels are not rotated, so display-oriented targets are
+    // mapped back onto the stored orientation.
+    let swapped = matches!(probe.orientation, 5..=8);
+    let (display_width, display_height) = probe.display_dimensions();
+    let output_size = match target_dimensions(display_width, display_height, &settings.resize) {
+        Some((width, height)) if swapped => (height, width),
+        Some(size) => size,
+        None => source.size,
+    };
+    if output_size.0 > source.size.0 || output_size.1 > source.size.1 {
+        return Err(ImagoError::InvalidSettings(
+            "images cannot be enlarged in the large-image mode".into(),
+        ));
+    }
+
+    // Color and metadata.
+    let icc_kind = source.icc.as_deref().map(color::classify_rgb_icc);
+    let keep_icc =
+        settings.metadata.keep_icc && matches!(icc_kind, Some(IccKind::Other | IccKind::Srgb));
+    let convert_to_srgb = !settings.metadata.keep_icc && icc_kind == Some(IccKind::Other);
+    let exif = if !settings.metadata.strip_metadata {
+        source.exif.clone()
+    } else if probe.orientation != 1 {
+        // Rotation is not applied here: keep the image the right way up.
+        Some(metadata::orientation_only_exif(probe.orientation))
+    } else {
+        None
+    };
+    if settings.metadata.auto_orient && probe.orientation != 1 {
+        report.warnings.push(Warning::new(
+            "orientation_kept_as_tag",
+            "the rotation was stored as an EXIF tag instead of turning the pixels",
+        ));
+    }
+    let plan = streaming::StreamPlan {
+        format,
+        output_size,
+        quality: settings.compression.quality.get(),
+        convert_to_srgb,
+        keep_icc,
+        exif,
+        flatten,
+    };
+
+    (context.progress)(Stage::Encoding);
+    let started = Instant::now();
+    let encoded = guard_decoder(probe.format, || {
+        streaming::run(
+            bytes,
+            probe.format,
+            &source,
+            &plan,
+            context.cancel,
+            &mut |_| {},
+        )
+    })?;
+    report.timings.encode_ms = millis(started.elapsed());
+    let sizes = vec![CandidateSize {
+        format,
+        lossless: format == ImageFormat::Png,
+        size: encoded.len() as u64,
+    }];
+
+    let resized = output_size != source.size;
+    if settings.output.when_larger == WhenLarger::KeepOriginal
+        && !resized
+        && (target == StillTarget::Auto || format == probe.format)
+        && !convert_to_srgb
+        && let Some(original) = original_bytes(bytes, probe, settings)?
+        && original.len() <= encoded.len()
+    {
+        let mut chosen = kept_original(original, probe, report, DecisionReason::KeptOriginal);
+        chosen.decision.candidates = sizes;
+        return Ok(chosen);
+    }
+
+    let saved = saved_percent(report.input_size, encoded.len() as u64);
+    let display = if swapped {
+        (output_size.1, output_size.0)
+    } else {
+        output_size
+    };
+    Ok(Chosen {
+        stored_dimensions: output_size,
+        display_dimensions: display,
+        format,
+        decision: Decision {
+            format,
+            reason: match target {
+                StillTarget::Auto => DecisionReason::Smallest,
+                StillTarget::Format(_) => DecisionReason::Requested,
+            },
+            saved_percent: saved,
+            kept_transparency: has_alpha && format == ImageFormat::Png,
+            kept_animation: false,
+            candidates: sizes,
+        },
+        bytes: encoded,
+    })
 }
 
 /// Steps 11–18 for still images.
@@ -404,9 +639,13 @@ fn process_still(
 
     // 15: metadata for the output.
     let orientation_value = probe::orientation_to_exif(decoded.orientation);
+    // In AVIF and HEIC the orientation lives in `irot`/`imir`, never in EXIF
+    // (HEIC pixels are even rotated by the decoder), so a leftover EXIF tag
+    // would rotate the output a second time.
+    let upright = rotated || matches!(probe.format, ImageFormat::Avif | ImageFormat::Heic);
     let exif_out: Option<Vec<u8>> = if !settings.metadata.strip_metadata {
         decoded.exif.clone().map(|mut exif| {
-            if rotated {
+            if upright {
                 metadata::reset_exif_orientation(&mut exif);
             }
             exif
@@ -515,6 +754,7 @@ fn process_still(
             image: pixels,
             icc_profile: embed_icc,
             exif: exif_out.as_deref().filter(|_| format_capability.exif),
+            cancel: Some(context.cancel),
         };
         let options = EncodeOptions {
             quality: settings.compression.quality,
@@ -524,6 +764,7 @@ fn process_still(
         let started = Instant::now();
         let encoded = match codecs::encode(candidate.format, input, options) {
             Ok(encoded) => encoded,
+            Err(ImagoError::Cancelled) => return Err(ImagoError::Cancelled),
             Err(error) if target == StillTarget::Auto && index + 1 < total => {
                 tracing::debug!(format = %candidate.format, %error, "auto candidate failed");
                 continue;
@@ -599,46 +840,84 @@ fn process_still(
     })
 }
 
+/// Output formats tried for animations in automatic mode. WebP is fast and
+/// widely supported; animated AVIF is often much smaller for photographic
+/// content but slow to encode, so it is tried only at maximum effort.
+fn animation_auto_targets(settings: &OptimizeSettings) -> Vec<ImageFormat> {
+    let mut targets = vec![ImageFormat::Webp];
+    if settings.compression.effort == Effort::Max
+        && capability(ImageFormat::Avif).animation
+        && capability(ImageFormat::Avif).encode
+    {
+        targets.push(ImageFormat::Avif);
+    }
+    targets
+}
+
 /// Steps 11–18 for animations.
 fn process_animation(
     bytes: &[u8],
     probe: &ImageProbe,
-    target: Option<ImageFormat>,
+    targets: &[ImageFormat],
     include_original: bool,
     context: &PipelineContext<'_>,
     report: &mut FileReport,
 ) -> Result<Chosen> {
     let settings = context.settings;
-    let Some(target) = target else {
+    if targets.is_empty() {
         return keep_original(bytes, probe, settings, report, DecisionReason::KeptOriginal)?
             .ok_or_else(|| {
                 ImagoError::InvalidSettings(
                     "the animation cannot be kept with these metadata settings".into(),
                 )
             });
-    };
+    }
 
-    (context.progress)(Stage::Decoding);
     let resized_to = target_dimensions(probe.width, probe.height, &settings.resize);
-    let mut source = open_animation(bytes, probe.format, &settings.limits, resized_to)?;
-    let info = source.info;
-
-    (context.progress)(Stage::Encoding);
-    let encode_started = Instant::now();
     let options = EncodeOptions {
         quality: settings.compression.quality,
         lossless: settings.compression.lossless,
         effort: settings.compression.effort,
     };
-    let encoded = guard_decoder(probe.format, || {
-        codecs::encode_animation(target, info, &mut source, options, context.cancel)
-    })?;
+    let encode_started = Instant::now();
+    let mut sizes = Vec::with_capacity(targets.len());
+    let mut best: Option<(Vec<u8>, ImageFormat, AnimationInfo)> = None;
+    for (index, &target) in targets.iter().enumerate() {
+        (context.progress)(Stage::Decoding);
+        let mut source = open_animation(bytes, probe.format, &settings.limits, resized_to)?;
+        let info = source.info;
+        (context.progress)(Stage::Encoding);
+        let result = guard_decoder(probe.format, || {
+            codecs::encode_animation(target, info, &mut source, options, context.cancel)
+        });
+        let encoded = match result {
+            Ok(encoded) => encoded,
+            Err(ImagoError::Cancelled) => return Err(ImagoError::Cancelled),
+            // In automatic mode a failing extra candidate is skipped.
+            Err(error) if index > 0 && best.is_some() => {
+                tracing::debug!(format = %target, %error, "animation candidate failed");
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        sizes.push(CandidateSize {
+            format: target,
+            lossless: options.lossless,
+            size: encoded.len() as u64,
+        });
+        if best
+            .as_ref()
+            .is_none_or(|(current, _, _)| encoded.len() < current.len())
+        {
+            best = Some((encoded, target, info));
+        }
+    }
     report.timings.encode_ms = millis(encode_started.elapsed());
-    let sizes = vec![CandidateSize {
-        format: target,
-        lossless: options.lossless,
-        size: encoded.len() as u64,
-    }];
+    let Some((encoded, target, info)) = best else {
+        return Err(ImagoError::InvalidSettings(
+            "the animation could not be encoded".into(),
+        ));
+    };
 
     if include_original
         && resized_to.is_none()

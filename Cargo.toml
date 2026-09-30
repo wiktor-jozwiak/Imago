@@ -5,7 +5,7 @@ members = ["crates/imago-core", "crates/imago-cli", "src-tauri"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.93"
 license = "GPL-3.0-or-later"
 authors = ["Imago contributors"]
 keywords = ["image", "compression", "optimizer", "webp", "avif"]
@@ -28,19 +28,29 @@ tracing-appender = "0.2"
 image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "tiff", "webp"] }
 mozjpeg = "0.10.13"
 webp = { version = "0.3.1", default-features = false }
-ravif = "0.13"
+# AVIF (still and animated): zenavif decodes with rav1d-safe and encodes with
+# zenravif. AGPL-3.0 (combined with GPL-3.0 under GPLv3 §13, ADR-016).
+zenavif = { version = "0.1.6", default-features = false, features = ["encode", "encode-asm", "encode-threading", "encode-imazen"] }
+zenavif-parse = "0.6.2"
 avif-decode = { version = "3", default-features = false }
-avif-parse = "2.1"
+imgref = "1.12"
+zenpixels = { version = "0.2.16", default-features = false }
+enough = "0.4"
+almost-enough = "0.4"
 oxipng = { version = "10.2", default-features = false, features = ["parallel"] }
 imagequant = "4.4"
 gif = "0.14"
 tiff = "0.11"
 jxl-oxide = { version = "0.12", features = ["image"] }
-zune-jpegxl = "0.5"
-zune-core = "0.5"
+# JPEG XL encoder (lossy, lossless, animation). AGPL-3.0 (ADR-016).
+jxl-encoder = { version = "0.3.1", default-features = false, features = ["std", "parallel"] }
+# HEIC/HEIF decoder in pure Rust (MIT OR Apache-2.0).
+heic-rs = "0.1.1"
 fast_image_resize = { version = "6.1", features = ["image"] }
 moxcms = "0.8"
 img-parts = "0.4"
+crc32fast = "1.4"
+png = "0.18"
 rgb = { version = "0.8", features = ["bytemuck"] }
 
 # Files and concurrency

@@ -21,7 +21,7 @@ pub const SNIFF_LEN: usize = 64;
 pub enum Detected {
     /// A format Imago can process.
     Supported(ImageFormat),
-    /// A recognized format that Imago does not process (HEIC, PDF, ...).
+    /// A recognized format that Imago does not process (PDF, PSD, ...).
     Unsupported(&'static str),
     /// Not a recognized image format.
     Unknown,
@@ -154,10 +154,9 @@ fn sniff_iso_bmff(header: &[u8]) -> Option<Detected> {
     }
     if is_avif {
         Some(Detected::Supported(ImageFormat::Avif))
-    } else if is_heic {
-        Some(Detected::Unsupported("HEIC"))
-    } else if major == b"mif1" || major == b"msf1" {
-        Some(Detected::Unsupported("HEIF"))
+    } else if is_heic || major == b"mif1" || major == b"msf1" {
+        // Generic HEIF brands without an AVIF brand carry HEVC pictures.
+        Some(Detected::Supported(ImageFormat::Heic))
     } else {
         None
     }
@@ -250,7 +249,7 @@ mod tests {
         let mut heic = vec![0, 0, 0, 0x18];
         heic.extend_from_slice(b"ftypheic\0\0\0\0mif1heic");
         heic.resize(SNIFF_LEN, 0);
-        assert_eq!(sniff(&heic), Detected::Unsupported("HEIC"));
+        assert_eq!(sniff(&heic), Detected::Supported(ImageFormat::Heic));
     }
 
     #[test]

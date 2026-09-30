@@ -145,6 +145,7 @@ fn icc_survives_lossless_stripping_when_kept() {
             image: &photo,
             icc_profile: Some(&p3),
             exif: Some(&exif),
+            cancel: None,
         };
         let bytes = codecs::encode(format, input, EncodeOptions::default()).unwrap();
         let kept = metadata::strip_container_metadata(&bytes, format, true)

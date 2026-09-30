@@ -6,8 +6,8 @@ use clap::{ArgAction, Parser};
 use imago_core::filesystem::ScanOptions;
 use imago_core::settings::{
     AnimationPolicy, CompressionSettings, ConflictPolicy, Effort, FormatChoice, ImageFormat,
-    Limits, MetadataSettings, OptimizeSettings, OutputLocation, OutputSettings, Quality,
-    ResizeMode, ResizeSettings, TransparencyPolicy, WhenLarger,
+    LargeImages, Limits, MetadataSettings, OptimizeSettings, OutputLocation, OutputSettings,
+    Quality, ResizeMode, ResizeSettings, TransparencyPolicy, WhenLarger,
 };
 
 const EXAMPLES: &str = "\
@@ -198,6 +198,11 @@ pub struct Cli {
           help_heading = "Performance and limits")]
     pub memory_budget: Option<u64>,
 
+    /// Reject images above the limits instead of processing JPEG and PNG
+    /// row by row (large-image mode).
+    #[arg(long, help_heading = "Performance and limits")]
+    pub no_large_image_mode: bool,
+
     // --------------------------------------------------------- reporting
     /// Print only errors.
     #[arg(short, long, conflicts_with = "verbose", help_heading = "Reporting")]
@@ -342,6 +347,11 @@ impl Cli {
                     .map_or(defaults.max_pixels, |mp| mp.saturating_mul(1_000_000)),
                 memory_budget_bytes: self.memory_budget.map(|mb| mb.saturating_mul(1024 * 1024)),
                 ..defaults
+            },
+            large_images: if self.no_large_image_mode {
+                LargeImages::Reject
+            } else {
+                LargeImages::Stream
             },
             workers: self.workers.map(usize::from),
         };

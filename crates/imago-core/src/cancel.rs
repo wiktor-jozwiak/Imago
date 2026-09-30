@@ -54,6 +54,17 @@ impl CancelToken {
     }
 }
 
+/// Lets codecs that poll an [`enough::Stop`] (AVIF, JPEG XL) stop mid-image.
+impl enough::Stop for CancelToken {
+    fn check(&self) -> std::result::Result<(), enough::StopReason> {
+        if self.is_cancelled() {
+            Err(enough::StopReason::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

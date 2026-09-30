@@ -14,9 +14,10 @@ name = "imago"
 path = "src/main.rs"
 
 [features]
-default = ["avif", "jxl"]
+default = ["avif", "jxl", "heic"]
 avif = ["imago-core/avif"]
 jxl = ["imago-core/jxl"]
+heic = ["imago-core/heic"]
 
 [dependencies]
 imago-core.workspace = true

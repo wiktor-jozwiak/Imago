@@ -108,6 +108,15 @@ fn attach_metadata(encoded: Vec<u8>, icc: Option<&[u8]>, exif: Option<&[u8]>) ->
 ///
 /// Every frame is compared with the previous canvas; only the changed
 /// rectangle is encoded, and identical frames extend the previous duration.
+/// Like libwebp's WebPAnimEncoder, each rectangle is tried in several ways and
+/// the smallest wins (except in fast mode):
+///
+/// * with lossy settings, alpha-blending the rectangle over the previous frame
+///   with unchanged pixels made transparent (they then cost almost nothing).
+///   Not in lossless mode: decoders blend with approximate integer math that
+///   can change opaque pixels by one level;
+/// * with lossy settings, also losslessly — flat graphics from GIFs are often
+///   smaller that way, and WebP allows mixing both kinds of frames.
 pub(crate) fn encode_animation(
     info: AnimationInfo,
     frames: &mut dyn Iterator<Item = Result<AnimationFrame>>,
@@ -154,8 +163,12 @@ pub(crate) fn encode_animation(
             muxer.add_frame(&bytes, placement)?;
         }
         let (x, y, width, height) = align_to_even(rect);
-        let region = image::imageops::crop_imm(&frame.image, x, y, width, height).to_image();
-        let encoded = encode_pixels(region.as_raw(), PixelLayout::Rgba, width, height, options)?;
+        let (encoded, blend) = encode_frame(
+            previous.as_ref(),
+            &frame.image,
+            (x, y, width, height),
+            options,
+        )?;
         pending = Some((
             encoded,
             FramePlacement {
@@ -164,7 +177,7 @@ pub(crate) fn encode_animation(
                 width,
                 height,
                 duration_ms: frame.delay_ms,
-                blend: false,
+                blend,
                 dispose_to_background: false,
             },
         ));
@@ -175,6 +188,68 @@ pub(crate) fn encode_animation(
         muxer.add_frame(&bytes, placement)?;
     }
     muxer.finish()
+}
+
+/// Encodes one frame rectangle; returns the smallest encoding and whether it
+/// must be alpha-blended over the previous frame.
+fn encode_frame(
+    previous: Option<&RgbaImage>,
+    current: &RgbaImage,
+    (x, y, width, height): (u32, u32, u32, u32),
+    options: EncodeOptions,
+) -> Result<(Vec<u8>, bool)> {
+    let region = image::imageops::crop_imm(current, x, y, width, height).to_image();
+    let encode = |pixels: &RgbaImage, lossless: bool| {
+        encode_pixels(
+            pixels.as_raw(),
+            PixelLayout::Rgba,
+            width,
+            height,
+            EncodeOptions {
+                lossless,
+                ..options
+            },
+        )
+    };
+    let mut best = (encode(&region, options.lossless)?, false);
+    if options.effort == Effort::Fast || options.lossless {
+        return Ok(best);
+    }
+    let mut consider = |candidate: Vec<u8>, blend: bool| {
+        if candidate.len() < best.0.len() {
+            best = (candidate, blend);
+        }
+    };
+    consider(encode(&region, true)?, false);
+    if let Some(previous) = previous
+        && let Some(over) = blended_region(previous, current, (x, y, width, height))
+    {
+        consider(encode(&over, false)?, true);
+        consider(encode(&over, true)?, true);
+    }
+    Ok(best)
+}
+
+/// The rectangle with pixels that did not change made fully transparent, for
+/// alpha-blending over the previous frame. `None` when a changed pixel is not
+/// fully opaque: blending would mix it with the previous frame.
+fn blended_region(
+    previous: &RgbaImage,
+    current: &RgbaImage,
+    (x, y, width, height): (u32, u32, u32, u32),
+) -> Option<RgbaImage> {
+    let mut region = RgbaImage::new(width, height);
+    for (column, row, pixel) in region.enumerate_pixels_mut() {
+        let now = current.get_pixel(x + column, y + row);
+        if now == previous.get_pixel(x + column, y + row) {
+            continue; // stays transparent
+        }
+        if now.0[3] != 255 {
+            return None;
+        }
+        *pixel = *now;
+    }
+    Some(region)
 }
 
 /// WebP frame offsets must be even: grow the rectangle left/up if needed.
@@ -192,6 +267,19 @@ fn align_to_even((x, y, width, height): (u32, u32, u32, u32)) -> (u32, u32, u32,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unchanged_pixels_become_transparent_when_blending() {
+        let previous = RgbaImage::from_pixel(4, 4, image::Rgba([10, 20, 30, 255]));
+        let mut current = previous.clone();
+        current.put_pixel(1, 1, image::Rgba([200, 0, 0, 255]));
+        let region = blended_region(&previous, &current, (0, 0, 4, 4)).unwrap();
+        assert_eq!(region.get_pixel(1, 1).0, [200, 0, 0, 255]);
+        assert_eq!(region.get_pixel(0, 0).0, [0, 0, 0, 0]);
+
+        current.put_pixel(2, 2, image::Rgba([0, 200, 0, 128]));
+        assert!(blended_region(&previous, &current, (0, 0, 4, 4)).is_none());
+    }
 
     #[test]
     fn even_alignment_keeps_the_rectangle_covered() {

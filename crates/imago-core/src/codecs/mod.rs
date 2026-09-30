@@ -4,6 +4,7 @@
 //! resized and color-converted. Encoders never see the original file and
 //! never touch the file system.
 
+mod apng;
 mod avif;
 pub mod capabilities;
 mod gif;
@@ -55,6 +56,8 @@ pub struct EncodeInput<'a> {
     pub icc_profile: Option<&'a [u8]>,
     /// EXIF block to embed (TIFF structure without the `Exif\0\0` prefix).
     pub exif: Option<&'a [u8]>,
+    /// Lets slow encoders (AVIF, JPEG XL) stop in the middle of an image.
+    pub cancel: Option<&'a CancelToken>,
 }
 
 impl<'a> EncodeInput<'a> {
@@ -64,6 +67,7 @@ impl<'a> EncodeInput<'a> {
             image,
             icc_profile: None,
             exif: None,
+            cancel: None,
         }
     }
 }
@@ -111,7 +115,7 @@ pub fn encode(
         ImageFormat::Tiff => tiff::encode(input, options),
         ImageFormat::Gif => gif::encode_still(input, options),
         ImageFormat::Jxl => jxl::encode(input, options),
-        ImageFormat::Bmp => Err(unavailable(format)),
+        ImageFormat::Bmp | ImageFormat::Heic => Err(unavailable(format)),
     }));
     match result {
         Ok(result) => result,
@@ -142,9 +146,11 @@ pub struct AnimationInfo {
     pub loop_count: u16,
 }
 
-/// Encodes an animation into WebP or GIF, consuming frames one at a time.
+/// Encodes an animation, consuming frames one at a time.
 ///
-/// Only the previous canvas and one encoded frame are kept in memory.
+/// WebP and GIF stream: only the previous canvas and one encoded frame are
+/// kept in memory. AVIF, JPEG XL and APNG need all frames at once (inter-frame
+/// coding, one shared palette); `Limits::max_animation_pixels` bounds them.
 pub fn encode_animation(
     format: ImageFormat,
     info: AnimationInfo,
@@ -155,6 +161,9 @@ pub fn encode_animation(
     let result = catch_unwind(AssertUnwindSafe(|| match format {
         ImageFormat::Webp => webp::encode_animation(info, frames, options, cancel),
         ImageFormat::Gif => gif::encode_animation(info, frames, options, cancel),
+        ImageFormat::Png => apng::encode_animation(info, frames, options, cancel),
+        ImageFormat::Avif => avif::encode_animation(info, frames, options, cancel),
+        ImageFormat::Jxl => jxl::encode_animation(info, frames, options, cancel),
         other => Err(encode_error(
             other,
             format!("{} cannot store animations", other.display_name()),
@@ -172,26 +181,35 @@ pub(crate) fn changed_rect(
     previous: &image::RgbaImage,
     current: &image::RgbaImage,
 ) -> Option<(u32, u32, u32, u32)> {
-    let (width, height) = current.dimensions();
-    let row_len = width as usize * 4;
-    let previous = previous.as_raw();
-    let current = current.as_raw();
+    changed_rect_raw(previous.as_raw(), current.as_raw(), current.width(), 4)
+}
+
+/// [`changed_rect`] for raw canvases of `bytes_per_pixel` bytes per pixel
+/// (4 for RGBA, 1 for palette indices).
+pub(crate) fn changed_rect_raw(
+    previous: &[u8],
+    current: &[u8],
+    width: u32,
+    bytes_per_pixel: usize,
+) -> Option<(u32, u32, u32, u32)> {
+    let row_len = width as usize * bytes_per_pixel;
+    if row_len == 0 || previous.len() != current.len() {
+        return None;
+    }
+    let height = current.len() / row_len;
     let rows_differ = |y: usize| {
         previous[y * row_len..(y + 1) * row_len] != current[y * row_len..(y + 1) * row_len]
     };
 
-    let top = (0..height as usize).find(|&y| rows_differ(y))?;
-    let bottom = (top..height as usize)
-        .rev()
-        .find(|&y| rows_differ(y))
-        .unwrap_or(top);
+    let top = (0..height).find(|&y| rows_differ(y))?;
+    let bottom = (top..height).rev().find(|&y| rows_differ(y)).unwrap_or(top);
     let mut left = width as usize;
     let mut right = 0usize;
     for y in top..=bottom {
         let row = y * row_len;
         for x in 0..width as usize {
-            let at = row + x * 4;
-            if previous[at..at + 4] != current[at..at + 4] {
+            let at = row + x * bytes_per_pixel;
+            if previous[at..at + bytes_per_pixel] != current[at..at + bytes_per_pixel] {
                 left = left.min(x);
                 right = right.max(x);
             }

@@ -192,6 +192,7 @@ fn probe_format<R: BufRead + Seek>(
         }
         ImageFormat::Avif => probe_avif(reader, file_size)?,
         ImageFormat::Jxl => probe_jxl(reader, file_size)?,
+        ImageFormat::Heic => probe_heic(reader, file_size)?,
     })
 }
 
@@ -291,32 +292,47 @@ fn probe_gif<R: BufRead + Seek>(mut reader: R, file_size: u64) -> Result<ImagePr
 
 #[cfg(feature = "avif")]
 fn probe_avif<R: BufRead + Seek>(mut reader: R, file_size: u64) -> Result<ImageProbe> {
+    use zenavif_parse::{AvifParser, ColorInformation, DecodeConfig};
+
     let format = ImageFormat::Avif;
-    let data = avif_parse::read_avif(&mut reader).map_err(|e| ImagoError::Decode {
+    let error = |message: String| ImagoError::Decode {
         format: format.display_name().into(),
-        message: e.to_string(),
-    })?;
-    let meta = data
-        .primary_item_metadata()
-        .map_err(|e| ImagoError::Decode {
-            format: format.display_name().into(),
-            message: e.to_string(),
-        })?;
-    reader.seek(SeekFrom::Start(0)).ok();
-    let mut head = [0u8; detection::SNIFF_LEN];
-    let read = read_up_to(&mut reader, &mut head);
-    let animated = !meta.still_picture || has_brand(&head[..read], b"avis");
+        message,
+    };
+    let parser = AvifParser::from_reader_with_config(
+        &mut reader,
+        &DecodeConfig::default().lenient(true),
+        &enough::Unstoppable,
+    )
+    .map_err(|e| error(e.to_string()))?;
+    let meta = parser
+        .primary_metadata()
+        .map_err(|e| error(e.to_string()))?;
+    let (width, height) = match parser.grid_config() {
+        Some(grid) => (grid.output_width, grid.output_height),
+        None => (meta.max_frame_width.get(), meta.max_frame_height.get()),
+    };
+    let animated = parser
+        .animation_info()
+        .is_some_and(|animation| animation.frame_count > 1);
+    let orientation = crate::image_engine::decode::orientation_from_irot_imir(
+        parser.rotation().map_or(0, |rotation| rotation.angle),
+        parser.mirror().map(|mirror| mirror.axis),
+    );
     Ok(ImageProbe {
         format,
-        width: meta.max_frame_width.get(),
-        height: meta.max_frame_height.get(),
-        has_alpha: data.alpha_item.is_some(),
+        width,
+        height,
+        has_alpha: parser.alpha_data().is_some()
+            || parser
+                .animation_info()
+                .is_some_and(|animation| animation.has_alpha),
         animated,
         bit_depth: meta.bit_depth,
         grayscale: meta.monochrome,
-        has_icc: false,
-        has_exif: false,
-        orientation: 1,
+        has_icc: matches!(parser.color_info(), Some(ColorInformation::IccProfile(_))),
+        has_exif: parser.exif().is_some(),
+        orientation: orientation_to_exif(orientation),
         file_size,
     })
 }
@@ -326,23 +342,36 @@ fn probe_avif<R: BufRead + Seek>(_reader: R, _file_size: u64) -> Result<ImagePro
     Err(crate::codecs::unavailable(ImageFormat::Avif))
 }
 
-#[cfg(feature = "avif")]
-fn read_up_to<R: std::io::Read>(reader: &mut R, buffer: &mut [u8]) -> usize {
-    let mut filled = 0;
-    while filled < buffer.len() {
-        match reader.read(&mut buffer[filled..]) {
-            Ok(0) | Err(_) => break,
-            Ok(read) => filled += read,
-        }
-    }
-    filled
+/// HEIC: dimensions are reported after `irot`/`imir`, which the decoder
+/// applies itself, so the probe never asks for an EXIF rotation.
+#[cfg(feature = "heic")]
+fn probe_heic<R: BufRead + Seek>(mut reader: R, file_size: u64) -> Result<ImageProbe> {
+    let mut bytes = Vec::new();
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|e| ImagoError::Decode {
+            format: ImageFormat::Heic.display_name().into(),
+            message: e.to_string(),
+        })?;
+    let info = heic_rs::probe(&bytes).map_err(crate::image_engine::decode::heic_error)?;
+    Ok(ImageProbe {
+        format: ImageFormat::Heic,
+        width: info.width,
+        height: info.height,
+        has_alpha: info.has_alpha,
+        animated: false,
+        bit_depth: info.bit_depth,
+        grayscale: matches!(info.chroma, heic_rs::ChromaFormat::Monochrome),
+        has_icc: info.has_icc,
+        has_exif: info.has_exif,
+        orientation: 1,
+        file_size,
+    })
 }
 
-#[cfg(feature = "avif")]
-fn has_brand(head: &[u8], brand: &[u8; 4]) -> bool {
-    head.len() >= 16
-        && &head[4..8] == b"ftyp"
-        && head[8..].as_chunks::<4>().0.iter().any(|b| b == brand)
+#[cfg(not(feature = "heic"))]
+fn probe_heic<R: BufRead + Seek>(_reader: R, _file_size: u64) -> Result<ImageProbe> {
+    Err(crate::codecs::unavailable(ImageFormat::Heic))
 }
 
 #[cfg(feature = "jxl")]

@@ -10,6 +10,7 @@ pub mod detection;
 pub mod pipeline;
 pub mod probe;
 pub mod resize;
+pub mod streaming;
 
 pub use decode::{DecodedImage, decode};
 pub use detection::{Detected, detect_file, sniff};

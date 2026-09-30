@@ -171,13 +171,22 @@ pub enum IccKind {
 
 /// Classifies an ICC profile relative to the image it belongs to.
 pub fn classify_icc(icc: &[u8], image: &DynamicImage) -> IccKind {
+    classify(icc, image.color().has_color())
+}
+
+/// [`classify_icc`] for RGB(A) pixels that are not held as an image
+/// (the large-image mode streams rows).
+pub fn classify_rgb_icc(icc: &[u8]) -> IccKind {
+    classify(icc, true)
+}
+
+fn classify(icc: &[u8], has_color: bool) -> IccKind {
     let Ok(profile) = ColorProfile::new_from_slice(icc) else {
         return IccKind::Unusable;
     };
-    let color = image.color();
     let matches_pixels = match profile.color_space {
-        DataColorSpace::Rgb => color.has_color(),
-        DataColorSpace::Gray => !color.has_color(),
+        DataColorSpace::Rgb => has_color,
+        DataColorSpace::Gray => !has_color,
         _ => false,
     };
     if !matches_pixels {
