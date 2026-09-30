@@ -439,15 +439,33 @@ mod tests {
     #[cfg(feature = "avif")]
     #[test]
     fn irot_and_imir_map_onto_exif_orientations() {
-        assert_eq!(orientation_from_irot_imir(0, None), Orientation::NoTransforms);
+        assert_eq!(
+            orientation_from_irot_imir(0, None),
+            Orientation::NoTransforms
+        );
         // `irot` turns counter-clockwise; EXIF 6 ("Rotate90") turns clockwise.
         assert_eq!(orientation_from_irot_imir(270, None), Orientation::Rotate90);
         assert_eq!(orientation_from_irot_imir(90, None), Orientation::Rotate270);
-        assert_eq!(orientation_from_irot_imir(180, None), Orientation::Rotate180);
-        assert_eq!(orientation_from_irot_imir(0, Some(0)), Orientation::FlipHorizontal);
-        assert_eq!(orientation_from_irot_imir(0, Some(1)), Orientation::FlipVertical);
-        assert_eq!(orientation_from_irot_imir(180, Some(0)), Orientation::FlipVertical);
-        assert_eq!(orientation_from_irot_imir(270, Some(0)), Orientation::Rotate90FlipH);
+        assert_eq!(
+            orientation_from_irot_imir(180, None),
+            Orientation::Rotate180
+        );
+        assert_eq!(
+            orientation_from_irot_imir(0, Some(0)),
+            Orientation::FlipHorizontal
+        );
+        assert_eq!(
+            orientation_from_irot_imir(0, Some(1)),
+            Orientation::FlipVertical
+        );
+        assert_eq!(
+            orientation_from_irot_imir(180, Some(0)),
+            Orientation::FlipVertical
+        );
+        assert_eq!(
+            orientation_from_irot_imir(270, Some(0)),
+            Orientation::Rotate90FlipH
+        );
     }
     use crate::image_engine::probe::probe_bytes;
     use image::{ImageBuffer, Rgba};

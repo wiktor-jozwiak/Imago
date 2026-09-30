@@ -10,7 +10,7 @@ export const pl = {
   "shortcuts.open": "Skróty klawiaturowe",
 
   "drop.title": "Upuść obrazy lub foldery",
-  "drop.subtitle": "JPG, PNG, WebP, AVIF, TIFF, BMP, GIF i JPEG XL. Pliki zostają na tym komputerze.",
+  "drop.subtitle": "JPG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF i JPEG XL. Pliki zostają na tym komputerze.",
   "drop.active": "Upuść, aby dodać",
   "drop.scanning": "Wyszukiwanie obrazów…",
   "drop.compact": "Upuść kolejne pliki lub foldery albo",
@@ -144,6 +144,8 @@ export const pl = {
   "advanced.allowOriginals": "Pozwól nadpisywać pliki oryginalne",
   "advanced.allowOriginalsHint": "Tylko razem z opcją „Nadpisz”. Zapis i tak odbywa się przez plik tymczasowy.",
   "advanced.logs": "Logi diagnostyczne",
+  "advanced.largeImages": "Tryb dużych obrazów",
+  "advanced.largeImagesHint": "JPEG i PNG ponad limit pikseli są przetwarzane pasami, z małym zużyciem pamięci. Inne formaty są wtedy pomijane.",
   "advanced.groupPerformance": "Wydajność",
   "advanced.groupFiles": "Dodawanie plików",
   "advanced.groupBehavior": "Szczególne przypadki",
@@ -180,6 +182,8 @@ export const pl = {
   "warning.larger_than_original": "Wynik jest większy od oryginału.",
   "warning.permissions_not_copied": "Nie udało się skopiować uprawnień pliku.",
   "warning.timestamps_not_copied": "Nie udało się zachować daty modyfikacji.",
+  "warning.large_image_mode": "Bardzo duży obraz — przetworzono go pasami (tryb dużych obrazów).",
+  "warning.orientation_kept_as_tag": "Obrót zapisano jako znacznik EXIF zamiast obracać piksele.",
   "warning.output_extension_changed": "Zmieniono rozszerzenie pliku wynikowego, aby pasowało do formatu.",
 
   "error.not_found": "Nie znaleziono pliku.",

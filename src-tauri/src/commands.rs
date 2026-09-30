@@ -96,10 +96,13 @@ pub async fn save_config(state: State<'_, AppState>, config: AppConfig) -> Comma
     Ok(())
 }
 
-const IMAGE_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "jpe", "jfif", "png", "apng", "webp", "avif", "tif", "tiff", "bmp", "dib",
-    "gif", "jxl",
-];
+/// Every extension the engine reads (JPEG, PNG, ..., HEIC).
+fn image_extensions() -> Vec<&'static str> {
+    imago_core::settings::ImageFormat::ALL
+        .iter()
+        .flat_map(|format| format.extensions().iter().copied())
+        .collect()
+}
 
 /// Native "open files" dialog.
 #[tauri::command]
@@ -108,7 +111,7 @@ pub async fn pick_files(app: AppHandle, title: String) -> CommandResult<Vec<Path
         app.dialog()
             .file()
             .set_title(title)
-            .add_filter("Images", IMAGE_EXTENSIONS)
+            .add_filter("Images", &image_extensions())
             .blocking_pick_files()
             .unwrap_or_default()
             .into_iter()

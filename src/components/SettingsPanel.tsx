@@ -490,6 +490,12 @@ function AdvancedCard({ disabled }: { disabled: boolean }) {
         placeholder="2048"
         onChange={(value) => setLimits({ memoryBudgetBytes: value === null ? null : value * MB })}
       />
+      <Switch
+        label={t("advanced.largeImages")}
+        hint={t("advanced.largeImagesHint")}
+        checked={settings.largeImages === "stream"}
+        onChange={(stream) => updateSettings((current) => ({ ...current, largeImages: stream ? "stream" : "reject" }))}
+      />
 
       <GroupTitle>{t("advanced.groupSafety")}</GroupTitle>
       <div className="switch-list">

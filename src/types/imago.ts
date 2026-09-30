@@ -3,7 +3,7 @@
  * Tauri adapter. Field names follow `#[serde(rename_all = "camelCase")]`.
  */
 
-export type ImageFormat = "jpeg" | "png" | "webp" | "avif" | "tiff" | "bmp" | "gif" | "jxl";
+export type ImageFormat = "jpeg" | "png" | "webp" | "avif" | "tiff" | "bmp" | "gif" | "jxl" | "heic";
 
 export type FormatChoice = { mode: "auto" } | { mode: "original" } | { mode: "fixed"; format: ImageFormat };
 
@@ -71,8 +71,12 @@ export interface OptimizeSettings {
   animation: AnimationPolicy;
   transparency: TransparencyPolicy;
   limits: Limits;
+  largeImages: LargeImages;
   workers: number | null;
 }
+
+/** Images above the limits: processed row by row (JPEG/PNG) or rejected. */
+export type LargeImages = "stream" | "reject";
 
 export interface ScanOptions {
   recursive: boolean;

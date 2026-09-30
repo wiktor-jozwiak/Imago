@@ -12,7 +12,7 @@ export const en: Messages = {
   "shortcuts.open": "Keyboard shortcuts",
 
   "drop.title": "Drop images or folders",
-  "drop.subtitle": "JPG, PNG, WebP, AVIF, TIFF, BMP, GIF and JPEG XL. Files stay on this computer.",
+  "drop.subtitle": "JPG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF and JPEG XL. Files stay on this computer.",
   "drop.active": "Drop to add",
   "drop.scanning": "Looking for images…",
   "drop.compact": "Drop more files or folders, or",
@@ -146,6 +146,8 @@ export const en: Messages = {
   "advanced.allowOriginals": "Allow overwriting original files",
   "advanced.allowOriginalsHint": "Only together with “Overwrite”. Writing still goes through a temporary file.",
   "advanced.logs": "Diagnostic logs",
+  "advanced.largeImages": "Large-image mode",
+  "advanced.largeImagesHint": "JPEG and PNG above the pixel limit are processed in strips with little memory. Other formats are skipped then.",
   "advanced.groupPerformance": "Performance",
   "advanced.groupFiles": "Adding files",
   "advanced.groupBehavior": "Special cases",
@@ -182,6 +184,8 @@ export const en: Messages = {
   "warning.larger_than_original": "The result is larger than the original.",
   "warning.permissions_not_copied": "File permissions could not be copied.",
   "warning.timestamps_not_copied": "The modification date could not be kept.",
+  "warning.large_image_mode": "Very large image — processed in strips (large-image mode).",
+  "warning.orientation_kept_as_tag": "The rotation was stored as an EXIF tag instead of turning the pixels.",
   "warning.output_extension_changed": "The output extension was changed to match its format.",
 
   "error.not_found": "File not found.",

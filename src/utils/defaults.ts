@@ -25,6 +25,7 @@ export function defaultSettings(): OptimizeSettings {
       maxAnimationPixels: 1_000_000_000,
       memoryBudgetBytes: null,
     },
+    largeImages: "stream",
     workers: null,
   };
 }
@@ -62,13 +63,14 @@ export function fallbackCapabilities(): FormatCapability[] {
   };
   return [
     { ...base, format: "jpeg", alpha: false, maxDimension: 65500 },
-    { ...base, format: "png", lossless: true },
+    { ...base, format: "png", lossless: true, animation: true },
     { ...base, format: "webp", lossless: true, animation: true, maxDimension: 16383 },
-    { ...base, format: "avif", icc: false },
+    { ...base, format: "avif", animation: true },
     { ...base, format: "tiff", lossy: false, lossless: true, exif: false },
     { ...base, format: "bmp", encode: false, lossy: false },
     { ...base, format: "gif", animation: true, icc: false, exif: false },
-    { ...base, format: "jxl", lossy: false, lossless: true, icc: false, exif: false, experimental: true },
+    { ...base, format: "jxl", lossless: true, animation: true, experimental: true },
+    { ...base, format: "heic", encode: false, lossy: false, icc: false, exif: false },
   ];
 }
 
@@ -81,4 +83,5 @@ export const FORMAT_LABELS: Record<ImageFormat, string> = {
   bmp: "BMP",
   gif: "GIF",
   jxl: "JPEG XL",
+  heic: "HEIC",
 };

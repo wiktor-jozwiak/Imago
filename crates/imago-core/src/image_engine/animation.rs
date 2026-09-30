@@ -20,8 +20,10 @@ use crate::settings::{ImageFormat, Limits};
 
 /// Formats whose animations Imago can decode.
 pub fn can_decode_animation(format: ImageFormat) -> bool {
-    matches!(format, ImageFormat::Gif | ImageFormat::Webp | ImageFormat::Png)
-        || (format == ImageFormat::Avif && cfg!(feature = "avif"))
+    matches!(
+        format,
+        ImageFormat::Gif | ImageFormat::Webp | ImageFormat::Png
+    ) || (format == ImageFormat::Avif && cfg!(feature = "avif"))
         || (format == ImageFormat::Jxl && cfg!(feature = "jxl"))
 }
 
