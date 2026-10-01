@@ -7,6 +7,12 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# "Unmaintained" notices for build-time proc-macros we cannot replace; neither
+# has a known vulnerability and neither ships code in the binaries.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "paste: proc-macro used by rav1d, rav1d-safe and zenpixels-convert" },
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: used by gtk-rs macros (Tauri on Linux)" },
+]
 
 [licenses]
 version = 2

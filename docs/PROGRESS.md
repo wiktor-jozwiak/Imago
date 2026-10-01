@@ -168,6 +168,15 @@ Legenda: ✅ zrobione · 🟡 w toku / częściowo · ⬜ do zrobienia · ⛔ za
 - Decyzja właściciela: dopuszczone kodeki AGPL-3.0 (ADR-016). Etap 9 wdrożony (zob. wyżej); `cargo test --all`,
   clippy (`-D warnings`, z i bez opcjonalnych kodeków), testy frontendu — zielone.
 
+### 2026-10-01 — sesja 3: pierwsze wydanie na GitHubie (v0.2.0)
+- Repozytorium prywatne: https://github.com/wiktor-jozwiak/imago. Pierwszy przebieg CI wykazał: błąd kompilacji
+  `jxl-encoder-simd` na ARM z `magetypes` ≥ 0.9.27 (przypięte 0.9.26 w `Cargo.lock`), brak miejsca na dysku runnera
+  Linux przy kompilacji benchmarków (zwalnianie miejsca, bez debug info, benchmarki sprawdza clippy), dwa ostrzeżenia
+  „unmaintained” w cargo-deny (makra build-time, wyjątki z uzasadnieniem w `deny.toml`).
+- CI: Linux + Windows przy każdym pushu, macOS na żądanie (minuty ×10 w repo prywatnym). Wydanie: aplikacja i CLI
+  w jednym jobie na platformę, macOS jako aplikacja uniwersalna (Apple Silicon + Intel).
+- Wersja 0.2.0, tag `v0.2.0` uruchamia budowę instalatorów (Windows, macOS, Linux) i CLI.
+
 ## Możliwe dalsze kroki
 
 - Zakup certyfikatu i włączenie podpisu (instrukcja: [SIGNING.md](SIGNING.md)).

@@ -1,9 +1,13 @@
 name: CI
 
+# Linux and Windows on every push and pull request. macOS runner minutes count
+# ten times in private repositories, so macOS is checked on demand
+# (Actions → CI → Run workflow) and in every release build.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,6 +16,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  # No debug info in CI builds: faster linking and far less disk space.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
 
 jobs:
   frontend:
@@ -33,9 +40,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest","windows-latest","macos-latest"]') || fromJSON('["ubuntu-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - uses: actions/checkout@v4
 
       - name: Linux system libraries (WebKitGTK for Tauri)
@@ -71,6 +84,3 @@ jobs:
       - name: tests (engine without optional codecs)
         if: runner.os == 'Linux'
         run: cargo test -p imago-core --no-default-features
-      - name: benchmarks compile
-        if: runner.os == 'Linux'
-        run: cargo bench -p imago-core --no-run

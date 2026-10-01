@@ -1,7 +1,8 @@
 name: Release
 
-# Builds installers (Windows MSI + NSIS, macOS DMG, Linux DEB/RPM/AppImage) and
-# CLI archives when a version tag is pushed, and attaches them to a draft release.
+# Builds installers (Windows MSI + NSIS, macOS universal DMG, Linux DEB/RPM/AppImage)
+# and CLI archives when a version tag is pushed, and attaches them to a draft release.
+# The CLI is built in the same job as the app, so the dependencies compile once.
 #
 # Code signing is optional and switches itself on when the matching secrets
 # exist (see docs/SIGNING.md):
@@ -12,7 +13,7 @@ name: Release
 #     WINDOWS_CERTIFICATE_PASSWORD
 #   macOS: APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
 #     APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
-# Without them the builds are unsigned, as before.
+# Without them the builds are unsigned.
 on:
   push:
     tags: ["v*"]
@@ -25,24 +26,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  app:
-    name: App installer (${{ matrix.name }})
+  build:
+    name: Installers (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: windows-x64
             os: windows-latest
-            args: ""
-          - name: macos-arm64
+            tauri-args: ""
+            rust-targets: ""
+          - name: macos-universal
             os: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - name: macos-x64
-            os: macos-latest
-            args: "--target x86_64-apple-darwin"
+            tauri-args: "--target universal-apple-darwin"
+            rust-targets: "aarch64-apple-darwin,x86_64-apple-darwin"
           - name: linux-x64
             os: ubuntu-22.04
-            args: ""
+            tauri-args: ""
+            rust-targets: ""
     runs-on: ${{ matrix.os }}
     env:
       # Flags only: the secrets themselves are passed to the steps that use them.
@@ -50,6 +51,9 @@ jobs:
       SIGN_PFX: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
       SIGN_APPLE: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: actions/checkout@v4
       - name: Linux system libraries
         if: runner.os == 'Linux'
@@ -59,7 +63,7 @@ jobs:
       - uses: ilammy/setup-nasm@v1
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust-targets }}
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
@@ -110,8 +114,6 @@ jobs:
       - name: macOS signing
         if: runner.os == 'macOS' && env.SIGN_APPLE == 'true'
         shell: bash
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
         run: |
           # tauri-action reads these; they are exported only when a certificate exists.
           {
@@ -123,46 +125,43 @@ jobs:
             echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
           } >> "$GITHUB_ENV"
 
+      # ---- Desktop app ------------------------------------------------------
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Imago ${{ github.ref_name }}"
-          releaseBody: "Imago Image Optimizer — Fast. Local. Smaller images. Checksums: SHA256SUMS.txt."
+          releaseBody: |
+            Imago Image Optimizer — Fast. Local. Smaller images.
+
+            * Windows: `Imago_*_x64-setup.exe` (recommended) or `.msi`
+            * macOS (Apple Silicon and Intel): `Imago_*_universal.dmg`
+            * Linux: `.AppImage`, `.deb` or `.rpm`
+            * Command line: `imago-cli-*` archives
+
+            Checksums: `SHA256SUMS.txt`.
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }} ${{ env.TAURI_SIGNING_CONFIG }}
+          args: ${{ matrix.tauri-args }} ${{ env.TAURI_SIGNING_CONFIG }}
 
-  cli:
-    name: CLI (${{ matrix.target }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            archive: tar.gz
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            archive: tar.gz
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-    runs-on: ${{ matrix.os }}
-    env:
-      SIGN_AZURE: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ilammy/setup-nasm@v1
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --locked -p imago-cli --target ${{ matrix.target }}
+      # ---- Command-line tool (reuses the dependencies built above) ----------
+      - name: Build the CLI
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cargo build --release --locked -p imago-cli --target aarch64-apple-darwin
+            cargo build --release --locked -p imago-cli --target x86_64-apple-darwin
+            mkdir -p target/universal-apple-darwin/release
+            lipo -create -output target/universal-apple-darwin/release/imago \
+              target/aarch64-apple-darwin/release/imago target/x86_64-apple-darwin/release/imago
+            echo "CLI_BIN=target/universal-apple-darwin/release/imago" >> "$GITHUB_ENV"
+          else
+            cargo build --release --locked -p imago-cli
+            bin=target/release/imago
+            [ -f "${bin}.exe" ] && bin="${bin}.exe"
+            echo "CLI_BIN=${bin}" >> "$GITHUB_ENV"
+          fi
       - name: Sign the Windows CLI (Azure Trusted Signing, optional)
         if: runner.os == 'Windows' && env.SIGN_AZURE == 'true'
         shell: pwsh
@@ -170,31 +169,29 @@ jobs:
           TRUSTED_SIGNING_ENDPOINT: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
           TRUSTED_SIGNING_ACCOUNT: ${{ secrets.TRUSTED_SIGNING_ACCOUNT }}
           TRUSTED_SIGNING_PROFILE: ${{ secrets.TRUSTED_SIGNING_PROFILE }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: |
-          cargo install trusted-signing-cli --locked
-          trusted-signing-cli -e $env:TRUSTED_SIGNING_ENDPOINT -a $env:TRUSTED_SIGNING_ACCOUNT -c $env:TRUSTED_SIGNING_PROFILE -d "Imago CLI" "target/${{ matrix.target }}/release/imago.exe"
-      - name: Package
+        run: trusted-signing-cli -e $env:TRUSTED_SIGNING_ENDPOINT -a $env:TRUSTED_SIGNING_ACCOUNT -c $env:TRUSTED_SIGNING_PROFILE -d "Imago CLI" $env:CLI_BIN
+      - name: Package the CLI
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          name="imago-cli-${version}-${{ matrix.target }}"
+          name="imago-cli-${version}-${{ matrix.name }}"
           mkdir -p "dist/${name}"
-          bin="target/${{ matrix.target }}/release/imago"
-          [ -f "${bin}.exe" ] && bin="${bin}.exe"
-          cp "${bin}" LICENSE README.md docs/CLI.md "dist/${name}/"
+          cp "${CLI_BIN}" LICENSE README.md THIRD_PARTY.md docs/CLI.md "dist/${name}/"
           cd dist
-          if [ "${{ matrix.archive }}" = "zip" ]; then 7z a "${name}.zip" "${name}"; else tar czf "${name}.tar.gz" "${name}"; fi
-      - uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: dist/imago-cli-*
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a "${name}.zip" "${name}"; else tar czf "${name}.tar.gz" "${name}"; fi
+      - name: Upload the CLI to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # gh finds draft releases by tag (tauri-action created it above).
+        run: |
+          shopt -s nullglob
+          archives=(dist/imago-cli-*.zip dist/imago-cli-*.tar.gz)
+          gh release upload "${GITHUB_REF_NAME}" "${archives[@]}" --repo "${{ github.repository }}" --clobber
 
   checksums:
     name: SHA-256 checksums
-    needs: [app, cli]
+    needs: build
     runs-on: ubuntu-22.04
     steps:
       - name: Checksums of every release file

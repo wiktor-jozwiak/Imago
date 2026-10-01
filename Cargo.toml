@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/imago-core", "crates/imago-cli", "src-tauri"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.93"
 license = "GPL-3.0-or-later"
@@ -13,7 +13,7 @@ categories = ["multimedia::images", "command-line-utilities"]
 
 [workspace.dependencies]
 # Internal
-imago-core = { path = "crates/imago-core", version = "0.1.0", default-features = false }
+imago-core = { path = "crates/imago-core", version = "0.2.0", default-features = false }
 
 # Errors, serialization, logging
 thiserror = "2"

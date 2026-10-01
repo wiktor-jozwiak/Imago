@@ -1101,7 +1101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -2382,7 +2382,7 @@ dependencies = [
 
 [[package]]
 name = "imago-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "imago-core",
  "serde",
@@ -2398,7 +2398,7 @@ dependencies = [
 
 [[package]]
 name = "imago-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2416,7 +2416,7 @@ dependencies = [
 
 [[package]]
 name = "imago-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "almost-enough",
  "avif-decode",
@@ -3148,9 +3148,9 @@ dependencies = [
 
 [[package]]
 name = "magetypes"
-version = "0.9.29"
+version = "0.9.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb20fe6c3852ae9d38e328f9da0a77bdb6d2837f7c8cad0bda1b9bcf77c4e251"
+checksum = "c4d045ccf3f9d697e15f0b438f73b812ef93eb5e9d29cf5f5cb48dcf09f12e10"
 dependencies = [
  "archmage",
  "rustversion",

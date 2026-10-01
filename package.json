@@ -1,7 +1,7 @@
 {
   "name": "imago",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Imago Image Optimizer — Fast. Local. Smaller images.",
   "license": "GPL-3.0-or-later",
   "type": "module",
