@@ -1,69 +1,55 @@
 <p align="center"><img src="public/imago.svg" width="96" height="96" alt="Imago"></p>
 
 <h1 align="center">Imago — Image Optimizer</h1>
-<p align="center"><b>Fast. Local. Smaller images.</b><br>Szybsze obrazy. Mniejsze pliki. Zero chmury.</p>
+<p align="center"><b>Fast. Local. Smaller images. Zero cloud.</b></p>
 
-> **English summary.** Imago is a free, open-source desktop app (Windows, macOS, Linux) and command-line tool
-> that compresses, converts and resizes images **entirely on your computer** — like online optimizers, but with no
-> uploads, no accounts, no ads and no telemetry. JPEG, PNG, WebP, AVIF, HEIC, TIFF, BMP, GIF and JPEG XL in; JPEG,
-> PNG (also animated), WebP, AVIF, TIFF and JPEG XL out, with animations kept. Automatic mode picks the smallest format per image and never makes a
-> file bigger. See [docs/INSTALL.md](docs/INSTALL.md) and [docs/CLI.md](docs/CLI.md). License: GPL-3.0-or-later
-> (the AVIF animation and JPEG XL encoders are AGPL-3.0, see [THIRD_PARTY.md](THIRD_PARTY.md)).
+<p align="center">
+  <b>🇬🇧 English</b> &nbsp;|&nbsp; <a href="README.pl.md">🇵🇱 Polski</a>
+</p>
 
 ---
 
-Imago to darmowa, natywna aplikacja desktopowa i narzędzie wiersza poleceń do **kompresji, konwersji i skalowania
-obrazów wyłącznie lokalnie**. Działa jak internetowe optymalizatory obrazów, ale żaden plik nie opuszcza komputera.
+Imago is a free, native, open-source desktop application and command-line tool designed to **compress, convert, and resize images entirely locally**. It works just like online image optimizers, but no file ever leaves your computer.
 
-## Najważniejsze funkcje
+## Key Features
 
-- **Przeciągnij i upuść** pliki lub całe foldery (także podfoldery), albo wybierz je natywnym oknem systemu.
-- **Tryb automatyczny** — dla każdego obrazu porównuje kilka formatów (WebP, AVIF, JPEG, PNG) i zapisuje najmniejszy.
-  Zachowuje przezroczystość i animacje, **nigdy nie zwiększa pliku** i tłumaczy decyzję, np.
-  *„Wybrano WebP, ponieważ zmniejszył rozmiar pliku o 71% i zachował przezroczystość.”*
-- **Formaty wejściowe:** JPEG, PNG (z APNG), WebP, AVIF, GIF, JPEG XL (wszystkie także animowane), HEIC/HEIF
-  (zdjęcia z iPhone'a), TIFF, BMP.
-- **Formaty wyjściowe:** JPEG (MozJPEG), PNG (stratny jak TinyPNG lub bezstratny, także animowany APNG), WebP, AVIF,
-  TIFF, JPEG XL (stratny i bezstratny). Animacje można zapisać jako WebP, APNG, AVIF, JPEG XL lub GIF.
-- **Tryb dużych obrazów:** JPEG i PNG ponad limit pikseli (np. panoramy 30 000 px) są przetwarzane pasami,
-  z pamięcią zależną od szerokości, a nie pola obrazu.
-- **Jakość 1–100**, tryb bezstratny, tryb maksymalnej kompresji.
-- **Skalowanie:** szerokość, wysokość, zachowanie proporcji, maksymalne wymiary, skala procentowa.
-- **Metadane:** usuwanie EXIF (GPS, aparat), zachowanie profilu ICC (lub konwersja do sRGB), obrót wg EXIF,
-  zachowanie daty modyfikacji. Metadane JPEG/PNG/WebP można usunąć bez ponownego kodowania.
-- **Bezpieczny zapis:** wynik trafia najpierw do pliku tymczasowego, jest weryfikowany i atomowo przenoszony.
-  Oryginały nigdy nie są nadpisywane bez wyraźnej zgody.
-- Folder `optimized`, własny folder wyjściowy, przyrostek nazw, zachowanie struktury folderów, obsługa konfliktów nazw.
-- **Podgląd przed/po** z suwakiem porównania, rozmiary, procent redukcji, czas przetwarzania.
-- **ZIP** z wynikami, zapis pojedynczego wyniku („Zapisz jako…”), otwieranie folderu wynikowego.
-- Pasek postępu całego zadania i każdego pliku, anulowanie, pomijanie pojedynczego pliku, ponawianie.
-- Motyw jasny/ciemny/systemowy, polski i angielski interfejs, skróty klawiaturowe, sortowanie i filtrowanie.
-- **CLI `imago`** z tym samym silnikiem i tymi samymi ustawieniami co aplikacja.
+- **Drag and drop** files or entire directories (including subdirectories), or pick them using the native system file dialog.
+- **Automatic mode** — compares multiple formats (WebP, AVIF, JPEG, PNG) for every image and saves the smallest one. Preserves transparency and animations, **never makes a file bigger**, and explains its decision, e.g. *“Selected WebP because it reduced file size by 71% while preserving transparency.”*
+- **Input formats:** JPEG, PNG (including APNG), WebP, AVIF, GIF, JPEG XL (all including animated variants), HEIC/HEIF (iPhone photos), TIFF, BMP.
+- **Output formats:** JPEG (MozJPEG), PNG (lossy quantization like TinyPNG or lossless, including animated APNG), WebP, AVIF, TIFF, JPEG XL (lossy and lossless). Animations can be saved as WebP, APNG, AVIF, JPEG XL, or GIF.
+- **Large image mode:** JPEG and PNG files exceeding pixel dimension thresholds (e.g. 30,000 px panoramas) are processed in scanline strips, with memory usage bound to image width rather than total image area.
+- **Quality 1–100**, lossless mode, and maximum compression mode.
+- **Resizing:** width, height, aspect ratio preservation, maximum bounding box, percentage scaling.
+- **Metadata handling:** EXIF stripping (GPS, camera info), ICC color profile preservation (or conversion to sRGB), EXIF auto-rotation, modification timestamp preservation. JPEG/PNG/WebP metadata can be stripped without re-encoding.
+- **Safe atomic writes:** Output is initially written to a temporary file, verified, and atomically moved into place. Originals are never overwritten without explicit confirmation.
+- Output to `optimized` folder, custom output directory, custom name suffix, folder structure preservation, name collision handling.
+- **Before/After preview** with side-by-side comparison slider, size statistics, percentage reduction, and processing duration.
+- **ZIP archive** export, single-image “Save as…”, direct “Open output directory”.
+- Progress bar for the overall queue and per-file progress, cancel, skip individual file, retry.
+- Light, dark, and system themes, Polish and English user interface, keyboard shortcuts, sorting and filtering.
+- **CLI `imago`** powered by the exact same engine and settings as the desktop GUI.
 
-## Prywatność
+## Privacy
 
-- przetwarzanie wyłącznie lokalne, działa offline;
-- brak logowania, reklam, telemetrii i zewnętrznych trackerów;
-- aplikacja nie zawiera kodu sieciowego, a polityka CSP okna blokuje połączenia zewnętrzne;
-- ustawienia zapisywane są lokalnie i nie zawierają historii plików; logi diagnostyczne (ścieżki i błędy, bez treści
-  obrazów) zostają na dysku i są rotowane po 7 dniach.
+- Exclusively local processing, works completely offline;
+- No accounts, no sign-in, no advertisements, no telemetry, and no external trackers;
+- The app contains no networking code, and the window's Content Security Policy (CSP) blocks external connections;
+- Settings are stored locally without file history; diagnostic logs (paths and errors only, no image content) remain on disk and are rotated after 7 days.
 
-## Instalacja
+## Installation
 
-Gotowe instalatory (Windows `.msi`/`.exe`, macOS `.dmg`, Linux `.deb`/`.rpm`/`.AppImage`) i archiwa CLI są publikowane
-w zakładce *Releases*. Budowanie ze źródeł i wymagania systemowe: **[docs/INSTALL.md](docs/INSTALL.md)**.
+Pre-built packages (Windows `.msi`/`.exe`, macOS `.dmg`, Linux `.deb`/`.rpm`/`.AppImage`) and CLI archives are published under the *Releases* tab. Building from source and system requirements: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-Szybki start ze źródeł (Windows, macOS, Linux):
+Quick start from source (Windows, macOS, Linux):
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-Wymagane narzędzia: Rust stable ≥ 1.93, Node.js 20.19+ / 22+, kompilator C, **NASM** (tylko do budowania),
-na Linuxie biblioteki WebKitGTK. Gotowa aplikacja nie ma żadnych zależności uruchomieniowych poza WebView systemu.
+Required toolchain: Rust stable ≥ 1.93, Node.js 20.19+ / 22+, C compiler, **NASM** (build-time only), WebKitGTK on Linux. The packaged application has no runtime dependencies other than the operating system WebView.
 
-## Wiersz poleceń
+## Command Line Interface
 
 ```bash
 imago input.jpg --output optimized.jpg --format webp --quality 82
@@ -77,44 +63,42 @@ imago ./photos --zip photos.zip --json
 imago --help
 ```
 
-Pełny opis opcji i kodów wyjścia: **[docs/CLI.md](docs/CLI.md)**.
+Full description of flags and exit codes: **[docs/CLI.md](docs/CLI.md)**.
 
-## Wydajność
+## Performance
 
-- pliki są przetwarzane równolegle przez pulę wątków (domyślnie liczba rdzeni logicznych − 1);
-- budżet pamięci ogranicza liczbę jednocześnie zdekodowanych dużych obrazów, a limity rozmiaru i wymiarów są
-  sprawdzane z nagłówka **przed** dekodowaniem (ochrona przed „bombami” dekompresyjnymi);
-- skalowanie SIMD (Lanczos3), kodeki natywne (MozJPEG, libwebp, rav1e, libimagequant, libdeflate) linkowane statycznie;
-- animacje przetwarzane strumieniowo, klatka po klatce;
-- lista w interfejsie jest wirtualizowana — tysiące plików nie spowalniają okna.
+- Files are processed concurrently using a worker thread pool (defaults to logical core count − 1);
+- Memory budget caps concurrently decoded large images; dimensions and byte sizes are verified from file headers **before** decoding (protection against decompression bombs);
+- SIMD resizing (Lanczos3), native statically-linked codecs (MozJPEG, libwebp, rav1e, libimagequant, libdeflate);
+- Streaming frame-by-frame pipeline for animated images;
+- Fully virtualized UI list — thousands of files can be queued without rendering lag.
 
-Wyniki benchmarków i sposób ich uruchamiania: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**.
+Benchmark results and instructions: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**.
 
-## Dokumentacja
+## Documentation
 
-| Dokument | Zawartość |
+| Document | Content |
 |---|---|
-| [docs/INSTALL.md](docs/INSTALL.md) | instalacja, uruchomienie deweloperskie, build release, Windows / macOS / Linux |
-| [docs/CLI.md](docs/CLI.md) | instrukcja wiersza poleceń |
-| [docs/FORMATS.md](docs/FORMATS.md) | obsługiwane formaty i tryby |
-| [docs/PIPELINE.md](docs/PIPELINE.md) | 23 kroki przetwarzania pliku, bezpieczny zapis |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | architektura, wielowątkowość, pamięć, anulowanie |
-| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | znane ograniczenia |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | rozwiązywanie problemów |
-| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | benchmarki |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | decyzje architektoniczne (ADR) |
-| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) | współpraca, zgłaszanie podatności |
+| [docs/INSTALL.md](docs/INSTALL.md) | Installation, development setup, release build, Windows / macOS / Linux |
+| [docs/CLI.md](docs/CLI.md) | CLI documentation and usage instructions |
+| [docs/FORMATS.md](docs/FORMATS.md) | Supported formats and conversion modes |
+| [docs/PIPELINE.md](docs/PIPELINE.md) | 23-step processing pipeline, safe atomic write |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, multi-threading, memory limits, cancellation |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | Known limitations |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Troubleshooting |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Benchmarks |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture Decision Records (ADRs) |
+| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) | Contributing guidelines, security vulnerability reporting |
 
-## Znane ograniczenia (skrót)
+## Known Limitations (Summary)
 
-- JPEG XL jest zapisywany wyłącznie bezstratnie (brak stabilnego stratnego kodera bez CMake); AVIF — tylko stratnie.
-- Animowane AVIF i JPEG XL są zachowywane jako oryginał (nie są ponownie kodowane); APNG nie jest zapisywany.
-- Anulowanie działa między etapami — pojedyncze kodowanie dużego obrazu AVIF kończy się przed zatrzymaniem.
-- Instalatory nie są podpisane cyfrowo (Windows SmartScreen / macOS Gatekeeper mogą ostrzegać).
+- JPEG XL is currently saved in lossless mode only (no stable CMake-free lossy encoder available); AVIF is lossy only.
+- Animated AVIF and JPEG XL are preserved in original format (not re-encoded); APNG is not generated.
+- Cancellation takes effect between processing stages — in-flight encoding of a large AVIF completes before stopping.
+- Release installers are not digitally signed (Windows SmartScreen / macOS Gatekeeper may display an alert).
 
-Pełna lista: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
-## Licencja
+## License
 
-Imago jest wolnym oprogramowaniem na licencji **GNU GPL v3.0 lub nowszej** ([LICENSE](LICENSE)). Licencja wynika
-z użycia biblioteki libimagequant (stratna kompresja PNG). Licencje wszystkich zależności: [THIRD_PARTY.md](THIRD_PARTY.md).
+Imago is free and open-source software licensed under **GNU GPL v3.0 or later** ([LICENSE](LICENSE)). This license is determined by the inclusion of libimagequant (lossy PNG quantization). Third-party dependencies: [THIRD_PARTY.md](THIRD_PARTY.md).
